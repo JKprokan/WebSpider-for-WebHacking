@@ -8,7 +8,7 @@ import click
 @click.option('--json', is_flag=True, help='JSON 결과 추출')
 @click.option('--csv', is_flag=True, help='CSV 파일 추출')
 @click.option('--graph', is_flag=True, help='링크 구조 그래프 생성')
-@click.option('--llm', is_flag=True, help='LLM 연계 분석 실행')
+#@click.option('--llm', is_flag=True, help='LLM 연계 분석 실행')
 @click.option('--include', default="", help='포함할 키워드 (쉼표로 구분)')
 @click.option('--exclude', default="", help='제외할 키워드 (쉼표로 구분)')
 
