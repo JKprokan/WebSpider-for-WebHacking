@@ -1,0 +1,11 @@
+# 데이터베이스 및 결과 파일
+data/*.db
+data/*.json
+data/*.csv
+
+# 파이썬 컴파일 캐시
+__pycache__/
+*.pyc
+
+# macOS 시스템 파일
+.DS_Store
