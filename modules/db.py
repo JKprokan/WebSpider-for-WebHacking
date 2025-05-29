@@ -16,18 +16,19 @@ def create_table():
             depth INTEGER,
             host TEXT,
             query_params TEXT,
+            input_fields TEXT,
             collected_time TEXT
         );
         """)
         conn.commit()
 
-def insert_link(link, parent, depth, host, query_params):
+def insert_link(link, parent, depth, host, query_params, input_fields_json):
     kst_now = datetime.now(timezone(timedelta(hours=9))).strftime("%Y-%m-%d %H:%M:%S")
 
     with sqlite3.connect(db_path) as conn:
         cursor = conn.cursor()
         cursor.execute("""
-            INSERT OR IGNORE INTO crawl_links (link, parent, depth, host, query_params, collected_time)
-            VALUES (?, ?, ?, ?, ?, ?)
-        """, (link, parent, depth, host, query_params, kst_now))
+            INSERT OR IGNORE INTO crawl_links (link, parent, depth, host, query_params, input_fields, collected_time)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (link, parent, depth, host, query_params, input_fields_json, kst_now))
         conn.commit()
