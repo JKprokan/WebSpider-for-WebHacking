@@ -1,6 +1,5 @@
 import asyncio
 from urllib.parse import urljoin, urlparse
-from collections import deque
 from bs4 import BeautifulSoup
 import json
 
@@ -28,7 +27,7 @@ def extract_input_fields(html):
 def run_dynamic_crawl_entry(start_url, max_depth=1, include=None, exclude=None):
     asyncio.run(_run_dynamic_crawl_entry(start_url, max_depth, include, exclude))
 
-async def fetch_page(context, url, depth, parent, include_patterns, exclude_patterns, max_depth, visited, queue):
+async def fetch_page(context, url, depth, parent, include_patterns, exclude_patterns, max_depth, visited, stack):
     if url in visited or depth > max_depth:
         return
     visited.add(url)
@@ -59,7 +58,7 @@ async def fetch_page(context, url, depth, parent, include_patterns, exclude_patt
             next_url = urljoin(url, tag["href"])
             if not is_url_allowed(next_url, include_patterns, exclude_patterns):
                 continue
-            queue.append((next_url, depth + 1, url))
+            stack.append((next_url, depth + 1, url))
 
         await page.close()
 
@@ -68,8 +67,7 @@ async def fetch_page(context, url, depth, parent, include_patterns, exclude_patt
 
 async def _run_dynamic_crawl_entry(start_url, max_depth=1, include=None, exclude=None):
     visited = set()
-    queue = deque()
-    queue.append((start_url, 0, None))
+    stack = [(start_url, 0, None)]
 
     include_patterns = compile_patterns(include)
     exclude_patterns = compile_patterns(exclude)
@@ -78,11 +76,8 @@ async def _run_dynamic_crawl_entry(start_url, max_depth=1, include=None, exclude
         browser = await playwright.chromium.launch(headless=True)
         context = await browser.new_context()
 
-        while queue:
-            tasks = []
-            for _ in range(min(len(queue), 5)):
-                url, depth, parent = queue.popleft()
-                tasks.append(fetch_page(context, url, depth, parent, include_patterns, exclude_patterns, max_depth, visited, queue))
-            await asyncio.gather(*tasks)
+        while stack:
+            url, depth, parent = stack.pop()
+            await fetch_page(context, url, depth, parent, include_patterns, exclude_patterns, max_depth, visited, stack)
 
         await browser.close()

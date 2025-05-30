@@ -1,7 +1,6 @@
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse
-from collections import deque
 import json
 
 from modules.db import insert_link
@@ -26,14 +25,13 @@ def extract_input_fields(html):
 
 def run_static_crawl(start_url, max_depth=1, include=None, exclude=None):
     visited = set()
-    queue = deque()
-    queue.append((start_url, 0, None))
+    stack = [(start_url, 0, None)]
 
     include_patterns = compile_patterns(include)
     exclude_patterns = compile_patterns(exclude)
 
-    while queue:
-        url, depth, parent = queue.popleft()
+    while stack:
+        url, depth, parent = stack.pop()
 
         if url in visited or depth > max_depth:
             continue
@@ -69,4 +67,4 @@ def run_static_crawl(start_url, max_depth=1, include=None, exclude=None):
             if not is_url_allowed(next_url, include_patterns, exclude_patterns):
                 continue
 
-            queue.append((next_url, depth + 1, url))
+            stack.append((next_url, depth + 1, url))
