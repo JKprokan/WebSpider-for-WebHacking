@@ -11,8 +11,10 @@ import click
 @click.option('--llm', is_flag=True, help='LLM 연계 분석 실행')
 @click.option('--include', default="", help='포함할 키워드 (쉼표로 구분)')
 @click.option('--exclude', default="", help='제외할 키워드 (쉼표로 구분)')
+@click.option('--mode', default='dfs', type=click.Choice(['dfs', 'bfs']), help='탐색 방식 (dfs 또는 bfs)')
 
-def webspider(url, depth, static, dynamic, json, csv, graph, llm, include, exclude):
+
+def webspider(url, depth, static, dynamic, json, csv, graph, llm, include, exclude, mode):
     click.secho(f"\n [URL] {url}", fg="cyan")
     click.secho(f" [Depth] {depth}", fg="cyan")
 
@@ -23,12 +25,12 @@ def webspider(url, depth, static, dynamic, json, csv, graph, llm, include, exclu
     if static:
         from modules.static_crawler import run_static_crawl
         click.secho("[+] 정적 크롤링 시작", fg="green")
-        run_static_crawl(url, depth, include, exclude)
+        run_static_crawl(url, depth, include, exclude, mode)
 
     if dynamic:
         from modules.dynamic_crawler import run_dynamic_crawl_entry
         click.secho("[+] 동적 크롤링 시작", fg="green")
-        run_dynamic_crawl_entry(url, depth, include, exclude)
+        run_dynamic_crawl_entry(url, depth, include, exclude, mode)
         
     if json:
         from modules.export import export_json

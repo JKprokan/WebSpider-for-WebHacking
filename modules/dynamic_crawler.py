@@ -2,6 +2,7 @@ import asyncio
 from urllib.parse import urljoin, urlparse
 from bs4 import BeautifulSoup
 import json
+from collections import deque
 
 from modules.db import insert_link
 from modules.params import extract_params_from_url
@@ -24,10 +25,13 @@ def extract_input_fields(html):
 
     return inputs
 
-def run_dynamic_crawl_entry(start_url, max_depth=1, include=None, exclude=None):
-    asyncio.run(_run_dynamic_crawl_entry(start_url, max_depth, include, exclude))
+def run_dynamic_crawl_entry(start_url, max_depth=1, include=None, exclude=None, mode='dfs'):
+    if mode == 'dfs':
+        asyncio.run(_run_dynamic_dfs(start_url, max_depth, include, exclude))
+    else:
+        asyncio.run(_run_dynamic_bfs(start_url, max_depth, include, exclude))
 
-async def fetch_page(context, url, depth, parent, include_patterns, exclude_patterns, max_depth, visited, stack):
+async def fetch_page(context, url, depth, parent, include_patterns, exclude_patterns, max_depth, visited, container, push):
     if url in visited or depth > max_depth:
         return
     visited.add(url)
@@ -58,14 +62,14 @@ async def fetch_page(context, url, depth, parent, include_patterns, exclude_patt
             next_url = urljoin(url, tag["href"])
             if not is_url_allowed(next_url, include_patterns, exclude_patterns):
                 continue
-            stack.append((next_url, depth + 1, url))
+            push(container, (next_url, depth + 1, url))
 
         await page.close()
 
     except Exception as e:
         print(f"[!] 요청 실패: {url} - {e}")
 
-async def _run_dynamic_crawl_entry(start_url, max_depth=1, include=None, exclude=None):
+async def _run_dynamic_dfs(start_url, max_depth=1, include=None, exclude=None):
     visited = set()
     stack = [(start_url, 0, None)]
 
@@ -78,6 +82,24 @@ async def _run_dynamic_crawl_entry(start_url, max_depth=1, include=None, exclude
 
         while stack:
             url, depth, parent = stack.pop()
-            await fetch_page(context, url, depth, parent, include_patterns, exclude_patterns, max_depth, visited, stack)
+            await fetch_page(context, url, depth, parent, include_patterns, exclude_patterns, max_depth, visited, stack, list.append)
+
+        await browser.close()
+
+async def _run_dynamic_bfs(start_url, max_depth=1, include=None, exclude=None):
+    visited = set()
+    queue = deque()
+    queue.append((start_url, 0, None))
+
+    include_patterns = compile_patterns(include)
+    exclude_patterns = compile_patterns(exclude)
+
+    async with async_playwright() as playwright:
+        browser = await playwright.chromium.launch(headless=True)
+        context = await browser.new_context()
+
+        while queue:
+            url, depth, parent = queue.popleft()
+            await fetch_page(context, url, depth, parent, include_patterns, exclude_patterns, max_depth, visited, queue, deque.append)
 
         await browser.close()
