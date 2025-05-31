@@ -14,7 +14,6 @@ TARGET_ATTRS = {"name", "type", "title", "autocomplete", "oninput", "onchange"}
 def extract_input_fields(html):
     soup = BeautifulSoup(html, "html.parser")
     inputs = []
-
     for tag in soup.find_all(["input", "textarea", "select"]):
         input_info = {}
         for attr, value in tag.attrs.items():
@@ -22,8 +21,11 @@ def extract_input_fields(html):
                 input_info[attr] = value
         if input_info:
             inputs.append(input_info)
-
     return inputs
+
+def is_supported_scheme(url):
+    parsed = urlparse(url)
+    return parsed.scheme in {"http", "https"}
 
 def run_dynamic_crawl_entry(start_url, max_depth=1, include=None, exclude=None, mode='dfs'):
     if mode == 'dfs':
@@ -36,7 +38,7 @@ async def fetch_page(context, url, depth, parent, include_patterns, exclude_patt
         return
     visited.add(url)
 
-    print(f"[Depth {depth}] 수집: {url}")
+    print(f"[Depth {depth}] 수집 : {url}")
 
     try:
         page = await context.new_page()
@@ -61,6 +63,8 @@ async def fetch_page(context, url, depth, parent, include_patterns, exclude_patt
         soup = BeautifulSoup(content, "html.parser")
         for tag in soup.find_all("a", href=True):
             next_url = urljoin(url, tag["href"])
+            if next_url.startswith("javascript:") or not is_supported_scheme(next_url):
+                continue
             if not is_url_allowed(next_url, include_patterns, exclude_patterns):
                 continue
             push(container, (next_url, depth + 1, url))
@@ -99,8 +103,7 @@ async def _run_dynamic_bfs(start_url, max_depth=1, include=None, exclude=None):
     async with async_playwright() as playwright:
         browser = await playwright.chromium.launch(headless=True)
         context = await browser.new_context(ignore_https_errors=True)
-
-        # 리소스 차단
+        #리소스 차단
         async def block_unneeded_resources(route):
             if route.request.resource_type in ["image", "font", "stylesheet"]:
                 await route.abort()
@@ -108,12 +111,12 @@ async def _run_dynamic_bfs(start_url, max_depth=1, include=None, exclude=None):
                 await route.continue_()
 
         await context.route("**/*", block_unneeded_resources)
-            
+
         while queue:
             tasks = []
-            for _ in range(min(len(queue), 20)):  # 병렬 수 20
+            for _ in range(min(len(queue), 20)):
                 url, depth, parent = queue.popleft()
-                tasks.append(fetch_page(context, url, depth, parent, include_patterns, exclude_patterns, max_depth, visited, queue))
+                tasks.append(fetch_page(context, url, depth, parent, include_patterns, exclude_patterns, max_depth, visited, queue, deque.append))
             await asyncio.gather(*tasks)
 
         await browser.close()
