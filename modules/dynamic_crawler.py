@@ -9,7 +9,7 @@ from modules.params import extract_params_from_url
 from modules.url_filter import compile_patterns, is_url_allowed
 from playwright.async_api import async_playwright
 
-TARGET_ATTRS = {"name", "type", "title", "autocomplete"}
+TARGET_ATTRS = {"name", "type", "title", "autocomplete", "oninput", "onchange"}
 
 def extract_input_fields(html):
     soup = BeautifulSoup(html, "html.parser")
@@ -40,7 +40,8 @@ async def fetch_page(context, url, depth, parent, include_patterns, exclude_patt
 
     try:
         page = await context.new_page()
-        await page.goto(url, timeout=10000)
+        await page.goto(url, timeout=7000, wait_until="domcontentloaded")
+        await page.wait_for_load_state("domcontentloaded")
         content = await page.content()
 
         input_fields = extract_input_fields(content)
@@ -68,6 +69,7 @@ async def fetch_page(context, url, depth, parent, include_patterns, exclude_patt
 
     except Exception as e:
         print(f"[!] 요청 실패: {url} - {e}")
+        await page.close()
 
 async def _run_dynamic_dfs(start_url, max_depth=1, include=None, exclude=None):
     visited = set()
@@ -96,10 +98,22 @@ async def _run_dynamic_bfs(start_url, max_depth=1, include=None, exclude=None):
 
     async with async_playwright() as playwright:
         browser = await playwright.chromium.launch(headless=True)
-        context = await browser.new_context()
+        context = await browser.new_context(ignore_https_errors=True)
 
+        # 리소스 차단
+        async def block_unneeded_resources(route):
+            if route.request.resource_type in ["image", "font", "stylesheet"]:
+                await route.abort()
+            else:
+                await route.continue_()
+
+        await context.route("**/*", block_unneeded_resources)
+            
         while queue:
-            url, depth, parent = queue.popleft()
-            await fetch_page(context, url, depth, parent, include_patterns, exclude_patterns, max_depth, visited, queue, deque.append)
+            tasks = []
+            for _ in range(min(len(queue), 20)):  # 병렬 수 20
+                url, depth, parent = queue.popleft()
+                tasks.append(fetch_page(context, url, depth, parent, include_patterns, exclude_patterns, max_depth, visited, queue))
+            await asyncio.gather(*tasks)
 
         await browser.close()

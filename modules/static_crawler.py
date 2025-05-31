@@ -8,7 +8,7 @@ from modules.db import insert_link
 from modules.params import extract_params_from_url
 from modules.url_filter import compile_patterns, is_url_allowed
 
-TARGET_ATTRS = {"name", "type", "title", "autocomplete"}
+TARGET_ATTRS = {"name", "type", "title", "autocomplete", "value"}
 
 def extract_input_fields(html):
     soup = BeautifulSoup(html, "html.parser")
