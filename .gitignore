@@ -1,5 +1,6 @@
 # 데이터베이스 및 결과 파일
 data/*
+!data/.gitkeep
 
 # 파이썬 컴파일 캐시
 __pycache__/
