@@ -1,7 +1,7 @@
 import re
 from urllib.parse import urlparse, parse_qs
 
-param_pattern = re.compile(r"\?.+=.+")
+param_pattern = re.compile(r'[?&]([a-zA-Z0-9_\-]+=[^&\s"\']+)')
 
 def has_query_params(url: str) -> bool:
     return bool(param_pattern.search(url))
