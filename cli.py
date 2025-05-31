@@ -8,17 +8,18 @@ import click
 @click.option('--json', is_flag=True, help='JSON 결과 추출')
 @click.option('--csv', is_flag=True, help='CSV 파일 추출')
 @click.option("--graph", is_flag=True, help="크롤링된 링크 구조를 인터랙티브 그래프로 시각화")
-@click.option('--llm', is_flag=True, help='LLM 연계 분석 실행')
+@click.option('--frequency', is_flag=True, help='빈도 분석 리포트 생성')
+@click.option('--llm', is_flag=True, help='LLM 연계 보안 분석 실행')
 @click.option('--include', default="", help='포함할 키워드 (쉼표로 구분)')
 @click.option('--exclude', default="", help='제외할 키워드 (쉼표로 구분)')
 @click.option('--mode', default='dfs', type=click.Choice(['dfs', 'bfs']), help='탐색 방식 (dfs 또는 bfs)')
 
 
-def webspider(url, depth, static, dynamic, json, csv, graph, llm, include, exclude, mode):
+def webspider(url, depth, static, dynamic, json, csv, graph, frequency, llm, include, exclude, mode):
     click.secho(f"\n [URL] {url}", fg="cyan")
     click.secho(f" [Depth] {depth}", fg="cyan")
 
-    if not any([static, dynamic, json, csv, graph, llm]):
+    if not any([static, dynamic, json, csv, graph, frequency, llm]):
         click.secho(" 실행할 작업을 최소 1개 이상 선택하세요 (예: --static)", fg="yellow")
         return
 
@@ -44,7 +45,18 @@ def webspider(url, depth, static, dynamic, json, csv, graph, llm, include, exclu
 
     if graph:
         from modules.visualize import generate_interactive_graph
+        click.secho("[+] 인터랙티브 그래프 생성", fg="green")
         generate_interactive_graph()
+
+    if frequency:
+        from modules.frequency import generate_frequency_report
+        click.secho("[+] 빈도 분석 리포트 생성", fg="green")
+        generate_frequency_report()
+        
+    if llm:
+        from modules.llm import run_llm_analysis
+        click.secho("[+] LLM 보안 분석 시작", fg="green")
+        run_llm_analysis()
         
 if __name__ == '__main__':
     from modules.db import create_table
