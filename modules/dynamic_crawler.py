@@ -27,13 +27,17 @@ def is_supported_scheme(url):
     parsed = urlparse(url)
     return parsed.scheme in {"http", "https"}
 
-def run_dynamic_crawl_entry(start_url, max_depth=1, include=None, exclude=None, mode='dfs'):
-    if mode == 'dfs':
-        asyncio.run(_run_dynamic_dfs(start_url, max_depth, include, exclude))
-    else:
-        asyncio.run(_run_dynamic_bfs(start_url, max_depth, include, exclude))
+def is_internal_url(url, base_netloc):
+    return urlparse(url).netloc.endswith(base_netloc)
 
-async def fetch_page(context, url, depth, parent, include_patterns, exclude_patterns, max_depth, visited, container, push):
+def run_dynamic_crawl_entry(start_url, max_depth=1, include=None, exclude=None, mode='dfs'):
+    base_netloc = urlparse(start_url).netloc
+    if mode == 'dfs':
+        asyncio.run(_run_dynamic_dfs(start_url, max_depth, include, exclude, base_netloc))
+    else:
+        asyncio.run(_run_dynamic_bfs(start_url, max_depth, include, exclude, base_netloc))
+
+async def fetch_page(context, url, depth, parent, include_patterns, exclude_patterns, max_depth, visited, container, push, base_netloc):
     if url in visited or depth > max_depth:
         return
     visited.add(url)
@@ -65,6 +69,8 @@ async def fetch_page(context, url, depth, parent, include_patterns, exclude_patt
             next_url = urljoin(url, tag["href"])
             if next_url.startswith("javascript:") or not is_supported_scheme(next_url):
                 continue
+            if not is_internal_url(next_url, base_netloc):
+                continue
             if not is_url_allowed(next_url, include_patterns, exclude_patterns):
                 continue
             push(container, (next_url, depth + 1, url))
@@ -75,7 +81,7 @@ async def fetch_page(context, url, depth, parent, include_patterns, exclude_patt
         print(f"[!] 요청 실패: {url} - {e}")
         await page.close()
 
-async def _run_dynamic_dfs(start_url, max_depth=1, include=None, exclude=None):
+async def _run_dynamic_dfs(start_url, max_depth=1, include=None, exclude=None, base_netloc=None):
     visited = set()
     stack = [(start_url, 0, None)]
 
@@ -88,11 +94,11 @@ async def _run_dynamic_dfs(start_url, max_depth=1, include=None, exclude=None):
 
         while stack:
             url, depth, parent = stack.pop()
-            await fetch_page(context, url, depth, parent, include_patterns, exclude_patterns, max_depth, visited, stack, list.append)
+            await fetch_page(context, url, depth, parent, include_patterns, exclude_patterns, max_depth, visited, stack, list.append, base_netloc)
 
         await browser.close()
 
-async def _run_dynamic_bfs(start_url, max_depth=1, include=None, exclude=None):
+async def _run_dynamic_bfs(start_url, max_depth=1, include=None, exclude=None, base_netloc=None):
     visited = set()
     queue = deque()
     queue.append((start_url, 0, None))
@@ -116,7 +122,7 @@ async def _run_dynamic_bfs(start_url, max_depth=1, include=None, exclude=None):
             tasks = []
             for _ in range(min(len(queue), 20)):
                 url, depth, parent = queue.popleft()
-                tasks.append(fetch_page(context, url, depth, parent, include_patterns, exclude_patterns, max_depth, visited, queue, deque.append))
+                tasks.append(fetch_page(context, url, depth, parent, include_patterns, exclude_patterns, max_depth, visited, queue, deque.append, base_netloc=None))
             await asyncio.gather(*tasks)
 
         await browser.close()

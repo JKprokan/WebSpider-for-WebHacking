@@ -24,6 +24,9 @@ def extract_input_fields(html):
 
     return inputs
 
+def is_internal_url(url, base_netloc):
+    return urlparse(url).netloc.endswith(base_netloc)
+
 def run_static_crawl(start_url, max_depth=1, include=None, exclude=None, mode='dfs'):
     if mode == 'dfs':
         run_static_dfs(start_url, max_depth, include, exclude)
@@ -36,6 +39,9 @@ def run_static_dfs(start_url, max_depth, include, exclude):
 
     include_patterns = compile_patterns(include)
     exclude_patterns = compile_patterns(exclude)
+
+    parsed_start = urlparse(start_url)
+    base_netloc = parsed_start.netloc
 
     while stack:
         url, depth, parent = stack.pop()
@@ -71,6 +77,9 @@ def run_static_dfs(start_url, max_depth, include, exclude):
             href = tag["href"]
             next_url = urljoin(url, href)
 
+            if not is_internal_url(next_url, base_netloc):
+                continue
+
             if not is_url_allowed(next_url, include_patterns, exclude_patterns):
                 continue
 
@@ -83,6 +92,9 @@ def run_static_bfs(start_url, max_depth, include, exclude):
 
     include_patterns = compile_patterns(include)
     exclude_patterns = compile_patterns(exclude)
+
+    parsed_start = urlparse(start_url)
+    base_netloc = urlparse(start_url).netloc
 
     while queue:
         url, depth, parent = queue.popleft()
@@ -117,6 +129,9 @@ def run_static_bfs(start_url, max_depth, include, exclude):
         for tag in soup.find_all("a", href=True):
             href = tag["href"]
             next_url = urljoin(url, href)
+
+            if not is_internal_url(next_url, base_netloc):
+                continue
 
             if not is_url_allowed(next_url, include_patterns, exclude_patterns):
                 continue
