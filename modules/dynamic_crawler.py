@@ -11,17 +11,37 @@ from playwright.async_api import async_playwright
 
 TARGET_ATTRS = {"name", "type", "title", "autocomplete", "oninput", "onchange"}
 
-def extract_input_fields(html):
+def extract_inputs_with_form_context(html):
     soup = BeautifulSoup(html, "html.parser")
-    inputs = []
+    results = []
+
+    # form 내부 input 수집
+    form_input_ids = set()
+    for form in soup.find_all("form"):
+        method = form.get("method", "").upper()
+        action = form.get("action", "")
+        for tag in form.find_all(["input", "textarea", "select"]):
+            input_info = {}
+            for attr, value in tag.attrs.items():
+                if attr in TARGET_ATTRS or attr.startswith("aria-"):
+                    input_info[attr] = value
+            if input_info:
+                input_info["form_method"] = method
+                input_info["form_action"] = action
+                results.append(input_info)
+            form_input_ids.add(id(tag))
+
+    # form 외부 input 수집
     for tag in soup.find_all(["input", "textarea", "select"]):
-        input_info = {}
-        for attr, value in tag.attrs.items():
-            if attr in TARGET_ATTRS or attr.startswith("aria-"):
-                input_info[attr] = value
-        if input_info:
-            inputs.append(input_info)
-    return inputs
+        if id(tag) not in form_input_ids:
+            input_info = {}
+            for attr, value in tag.attrs.items():
+                if attr in TARGET_ATTRS or attr.startswith("aria-"):
+                    input_info[attr] = value
+            if input_info:
+                results.append(input_info)
+
+    return results
 
 def is_supported_scheme(url):
     parsed = urlparse(url)
@@ -29,6 +49,13 @@ def is_supported_scheme(url):
 
 def is_internal_url(url, base_netloc):
     return urlparse(url).netloc.endswith(base_netloc)
+
+
+async def block_unneeded_resources(route):
+    if route.request.resource_type in ["image", "font", "stylesheet"]:
+        await route.abort()
+    else:
+        await route.continue_()
 
 def run_dynamic_crawl_entry(start_url, max_depth=1, include=None, exclude=None, mode='dfs'):
     base_netloc = urlparse(start_url).netloc
@@ -49,8 +76,9 @@ async def fetch_page(context, url, depth, parent, include_patterns, exclude_patt
         await page.goto(url, timeout=7000, wait_until="domcontentloaded")
         await page.wait_for_load_state("domcontentloaded")
         content = await page.content()
+        soup = BeautifulSoup(content, "html.parser") 
 
-        input_fields = extract_input_fields(content)
+        input_fields = extract_inputs_with_form_context(content)
         input_fields_json = json.dumps(input_fields, ensure_ascii=False)
 
         parsed = urlparse(url)
@@ -64,7 +92,6 @@ async def fetch_page(context, url, depth, parent, include_patterns, exclude_patt
             await page.close()
             return
 
-        soup = BeautifulSoup(content, "html.parser")
         for tag in soup.find_all("a", href=True):
             next_url = urljoin(url, tag["href"])
             if next_url.startswith("javascript:") or not is_supported_scheme(next_url):
@@ -91,6 +118,7 @@ async def _run_dynamic_dfs(start_url, max_depth=1, include=None, exclude=None, b
     async with async_playwright() as playwright:
         browser = await playwright.chromium.launch(headless=True)
         context = await browser.new_context()
+        await context.route("**/*", block_unneeded_resources)
 
         while stack:
             url, depth, parent = stack.pop()
@@ -109,20 +137,14 @@ async def _run_dynamic_bfs(start_url, max_depth=1, include=None, exclude=None, b
     async with async_playwright() as playwright:
         browser = await playwright.chromium.launch(headless=True)
         context = await browser.new_context(ignore_https_errors=True)
-        #리소스 차단
-        async def block_unneeded_resources(route):
-            if route.request.resource_type in ["image", "font", "stylesheet"]:
-                await route.abort()
-            else:
-                await route.continue_()
-
         await context.route("**/*", block_unneeded_resources)
 
         while queue:
             tasks = []
             for _ in range(min(len(queue), 20)):
                 url, depth, parent = queue.popleft()
-                tasks.append(fetch_page(context, url, depth, parent, include_patterns, exclude_patterns, max_depth, visited, queue, deque.append, base_netloc=None))
+
+                tasks.append(fetch_page(context, url, depth, parent, include_patterns, exclude_patterns, max_depth, visited, queue, deque.append, base_netloc))
             await asyncio.gather(*tasks)
 
         await browser.close()

@@ -19,7 +19,7 @@ def webspider(url, depth, static, dynamic, json, csv, graph, frequency, llm, inc
     click.secho(f"\n [URL] {url}", fg="cyan")
     click.secho(f" [Depth] {depth}", fg="cyan")
 
-    if not any([static, dynamic, json, csv, graph, frequency, llm]):
+    if not any([static, dynamic]):
         click.secho(" 실행할 작업을 최소 1개 이상 선택하세요 (예: --static)", fg="yellow")
         return
 
@@ -54,10 +54,10 @@ def webspider(url, depth, static, dynamic, json, csv, graph, frequency, llm, inc
         generate_frequency_report()
         
     if llm:
-        from modules.llm import run_llm_analysis
-        click.secho("[+] LLM 보안 분석 시작", fg="green")
+        from modules.local_llm import run_llm_analysis #현재 로컬(내부)LLM으로 설정, 외부llm하고싶은 경우 -> modules.external_llm
+        click.secho("[+] LLM 연계 취약점 분석 실행", fg="green")
         run_llm_analysis()
-        
+
 if __name__ == '__main__':
     from modules.db import create_table
     create_table()
