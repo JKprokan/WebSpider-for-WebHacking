@@ -16,7 +16,7 @@ import click
 @click.option('--cookie', default="", help='요청에 사용할 쿠키들 (name1 = value1; name2=value2..)')
 @click.option('--bf', type=click.Path(exists=True), help='디렉토리 브루트포싱용 워드리스트 경로')
 
-def webspider(url, depth, static, dynamic, json, csv, graph, frequency, llm, include, exclude, mode,cookie,bf):
+def webspider(url, depth, static, dynamic, json, csv, graph, frequency, llm, include, exclude, mode, cookie, bf):
     click.secho(f"\n [URL] {url}", fg="cyan")
     click.secho(f" [Depth] {depth}", fg="cyan")
 
@@ -62,8 +62,8 @@ def webspider(url, depth, static, dynamic, json, csv, graph, frequency, llm, inc
         generate_frequency_report()
         
     if llm:
-        from modules.llm import run_llm_analysis
-        click.secho("[+] LLM 보안 분석 시작", fg="green")
+        from modules.local_llm import run_llm_analysis #현재 로컬(내부)LLM으로 설정, 외부llm하고싶은 경우 -> modules.external_llm
+        click.secho("[+] LLM 연계 취약점 분석 실행", fg="green")
         run_llm_analysis()
         
 if __name__ == '__main__':
