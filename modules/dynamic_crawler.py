@@ -30,12 +30,25 @@ def is_supported_scheme(url):
 def is_internal_url(url, base_netloc):
     return urlparse(url).netloc.endswith(base_netloc)
 
-def run_dynamic_crawl_entry(start_url, max_depth=1, include=None, exclude=None, mode='dfs'):
+def parse_cookie_string(cookie_str: str) -> list:
+    cookies = []
+    if cookie_str:
+        for part in cookie_str.split(";"):
+            if "=" in part:
+                key, value = part.strip().split("=", 1)
+                cookies.append({"name": key.strip(), "value": value.strip()})
+    return cookies
+
+def run_dynamic_crawl_entry(start_url, max_depth=1, include=None, exclude=None, mode='dfs', cookie=None, seed_urls=None):
     base_netloc = urlparse(start_url).netloc
+    cookie_list = parse_cookie_string(cookie) if cookie else []
+    seed_urls = seed_urls or []
+    start_points = [start_url] + seed_urls
+
     if mode == 'dfs':
-        asyncio.run(_run_dynamic_dfs(start_url, max_depth, include, exclude, base_netloc))
+        asyncio.run(_run_dynamic_dfs(start_points, max_depth, include, exclude, base_netloc, cookie_list))
     else:
-        asyncio.run(_run_dynamic_bfs(start_url, max_depth, include, exclude, base_netloc))
+        asyncio.run(_run_dynamic_bfs(start_points, max_depth, include, exclude, base_netloc, cookie_list))
 
 async def fetch_page(context, url, depth, parent, include_patterns, exclude_patterns, max_depth, visited, container, push, base_netloc):
     if url in visited or depth > max_depth:
@@ -79,29 +92,14 @@ async def fetch_page(context, url, depth, parent, include_patterns, exclude_patt
 
     except Exception as e:
         print(f"[!] 요청 실패: {url} - {e}")
-        await page.close()
+        try:
+            await page.close()
+        except:
+            pass
 
-async def _run_dynamic_dfs(start_url, max_depth=1, include=None, exclude=None, base_netloc=None):
+async def _run_dynamic_dfs(start_points, max_depth=1, include=None, exclude=None, base_netloc=None, cookie_list=None):
     visited = set()
-    stack = [(start_url, 0, None)]
-
-    include_patterns = compile_patterns(include)
-    exclude_patterns = compile_patterns(exclude)
-
-    async with async_playwright() as playwright:
-        browser = await playwright.chromium.launch(headless=True)
-        context = await browser.new_context()
-
-        while stack:
-            url, depth, parent = stack.pop()
-            await fetch_page(context, url, depth, parent, include_patterns, exclude_patterns, max_depth, visited, stack, list.append, base_netloc)
-
-        await browser.close()
-
-async def _run_dynamic_bfs(start_url, max_depth=1, include=None, exclude=None, base_netloc=None):
-    visited = set()
-    queue = deque()
-    queue.append((start_url, 0, None))
+    stack = [(url, 0, None) for url in start_points]
 
     include_patterns = compile_patterns(include)
     exclude_patterns = compile_patterns(exclude)
@@ -109,7 +107,38 @@ async def _run_dynamic_bfs(start_url, max_depth=1, include=None, exclude=None, b
     async with async_playwright() as playwright:
         browser = await playwright.chromium.launch(headless=True)
         context = await browser.new_context(ignore_https_errors=True)
-        #리소스 차단
+
+        if cookie_list:
+            domain = urlparse(start_points[0]).hostname
+            for cookie in cookie_list:
+                cookie["domain"] = domain
+                cookie["path"] = "/"
+            await context.add_cookies(cookie_list)
+
+        while stack:
+            url, depth, parent = stack.pop()
+            await fetch_page(context, url, depth, parent, include_patterns, exclude_patterns, max_depth, visited, stack, list.append, base_netloc)
+
+        await browser.close()
+
+async def _run_dynamic_bfs(start_points, max_depth=1, include=None, exclude=None, base_netloc=None, cookie_list=None):
+    visited = set()
+    queue = deque([(url, 0, None) for url in start_points])
+
+    include_patterns = compile_patterns(include)
+    exclude_patterns = compile_patterns(exclude)
+
+    async with async_playwright() as playwright:
+        browser = await playwright.chromium.launch(headless=True)
+        context = await browser.new_context(ignore_https_errors=True)
+
+        if cookie_list:
+            domain = urlparse(start_points[0]).hostname
+            for cookie in cookie_list:
+                cookie["domain"] = domain
+                cookie["path"] = "/"
+            await context.add_cookies(cookie_list)
+
         async def block_unneeded_resources(route):
             if route.request.resource_type in ["image", "font", "stylesheet"]:
                 await route.abort()
@@ -122,7 +151,7 @@ async def _run_dynamic_bfs(start_url, max_depth=1, include=None, exclude=None, b
             tasks = []
             for _ in range(min(len(queue), 20)):
                 url, depth, parent = queue.popleft()
-                tasks.append(fetch_page(context, url, depth, parent, include_patterns, exclude_patterns, max_depth, visited, queue, deque.append, base_netloc=None))
+                tasks.append(fetch_page(context, url, depth, parent, include_patterns, exclude_patterns, max_depth, visited, queue, deque.append, base_netloc))
             await asyncio.gather(*tasks)
 
         await browser.close()

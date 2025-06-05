@@ -27,21 +27,34 @@ def extract_input_fields(html):
 def is_internal_url(url, base_netloc):
     return urlparse(url).netloc.endswith(base_netloc)
 
-def run_static_crawl(start_url, max_depth=1, include=None, exclude=None, mode='dfs'):
-    if mode == 'dfs':
-        run_static_dfs(start_url, max_depth, include, exclude)
-    else:
-        run_static_bfs(start_url, max_depth, include, exclude)
+def parse_cookie_string(cookie_str):
+    cookies = {}
+    if cookie_str:
+        for part in cookie_str.split(";"):
+            if "=" in part:
+                key, value = part.strip().split("=", 1)
+                cookies[key.strip()] = value.strip()
+    return cookies
 
-def run_static_dfs(start_url, max_depth, include, exclude):
+def run_static_crawl(start_url, max_depth=1, include=None, exclude=None, mode='dfs', cookie=None, seed_urls=None):
+    cookie_dict = parse_cookie_string(cookie) if cookie else {}
+    seed_urls = seed_urls or []
+
+    start_points = [start_url] + seed_urls
+
+    if mode == 'dfs':
+        run_static_dfs(start_points, max_depth, include, exclude, cookie_dict)
+    else:
+        run_static_bfs(start_points, max_depth, include, exclude, cookie_dict)
+
+def run_static_dfs(start_points, max_depth, include, exclude, cookies):
     visited = set()
-    stack = [(start_url, 0, None)]
+    stack = [(url, 0, None) for url in start_points]
 
     include_patterns = compile_patterns(include)
     exclude_patterns = compile_patterns(exclude)
 
-    parsed_start = urlparse(start_url)
-    base_netloc = parsed_start.netloc
+    base_netloc = urlparse(start_points[0]).netloc
 
     while stack:
         url, depth, parent = stack.pop()
@@ -53,7 +66,7 @@ def run_static_dfs(start_url, max_depth, include, exclude):
         print(f"[Depth {depth}] 수집: {url}")
 
         try:
-            res = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=5)
+            res = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, cookies=cookies, timeout=5)
             res.raise_for_status()
         except Exception as e:
             print(f"[!] 요청 실패: {url} - {e}")
@@ -74,27 +87,23 @@ def run_static_dfs(start_url, max_depth, include, exclude):
 
         soup = BeautifulSoup(res.text, "html.parser")
         for tag in soup.find_all("a", href=True):
-            href = tag["href"]
-            next_url = urljoin(url, href)
+            next_url = urljoin(url, tag["href"])
 
             if not is_internal_url(next_url, base_netloc):
                 continue
-
             if not is_url_allowed(next_url, include_patterns, exclude_patterns):
                 continue
 
             stack.append((next_url, depth + 1, url))
 
-def run_static_bfs(start_url, max_depth, include, exclude):
+def run_static_bfs(start_points, max_depth, include, exclude, cookies):
     visited = set()
-    queue = deque()
-    queue.append((start_url, 0, None))
+    queue = deque([(url, 0, None) for url in start_points])
 
     include_patterns = compile_patterns(include)
     exclude_patterns = compile_patterns(exclude)
 
-    parsed_start = urlparse(start_url)
-    base_netloc = urlparse(start_url).netloc
+    base_netloc = urlparse(start_points[0]).netloc
 
     while queue:
         url, depth, parent = queue.popleft()
@@ -106,7 +115,7 @@ def run_static_bfs(start_url, max_depth, include, exclude):
         print(f"[Depth {depth}] 수집: {url}")
 
         try:
-            res = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=5)
+            res = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, cookies=cookies, timeout=5)
             res.raise_for_status()
         except Exception as e:
             print(f"[!] 요청 실패: {url} - {e}")
@@ -127,12 +136,10 @@ def run_static_bfs(start_url, max_depth, include, exclude):
 
         soup = BeautifulSoup(res.text, "html.parser")
         for tag in soup.find_all("a", href=True):
-            href = tag["href"]
-            next_url = urljoin(url, href)
+            next_url = urljoin(url, tag["href"])
 
             if not is_internal_url(next_url, base_netloc):
                 continue
-
             if not is_url_allowed(next_url, include_patterns, exclude_patterns):
                 continue
 
