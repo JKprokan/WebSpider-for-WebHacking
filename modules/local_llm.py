@@ -25,47 +25,56 @@ def build_prompt(url, input_fields, query_params):
     params_str = json.dumps(query_params, ensure_ascii=False, indent=2)
 
     prompt = f"""
-    You are a penetration testing expert specializing in web security vulnerability analysis.
+You are a web security analyst. You are given input field metadata and query parameters extracted from a web application.
 
-    You are provided with structured information about input fields and query parameters from a web page.  
-    This information includes technical hints about how the inputs are structured and which HTML attributes or names they contain.
+Your task is to analyze each field and return a structured, concise summary as follows:
 
-    Your tasks are:
-    1. For each input or parameter, infer how it is likely to be used in the context of the application.
-    2. Based on this, identify the most likely web vulnerabilities (such as SQL Injection, XSS, CSRF, Open Redirect, etc.) in order of likelihood.
-    3. When suggesting possible vulnerabilities, clearly explain **why** you think they are likely by referring to or using the given information.
+- For each input field or query parameter:
+  - Describe its **likely use** (e.g., login field, search field, etc.).
+  - Identify any **likely vulnerability** (e.g., SQL Injection, XSS, CSRF, etc.).
+  - Map the vulnerability to the **relevant OWASP Top 10 category** (e.g., A03: Injection).
+  - Do **not include excessive explanation or justification**.
+  - Return only the structured result in the specified format.
 
-    ---
+Use this format:
 
-    ### Analysis Guidelines
+[
+  {{
+    "field": "FIELD_NAME",
+    "usage": "LIKELY_USAGE",
+    "vulnerability": "VULNERABILITY_TYPE",
+    "owasp10": "OWASP_CATEGORY"
+  }},
+  ...
+]
 
-    - Do **not** assume that every input is vulnerable. Only suggest vulnerabilities that are realistically likely based on the provided information (attribute names, field names, query keys, etc.).
-    - If you suspect a vulnerability, clearly state the **rationale** behind your assessment.  
-      Example: `"name='login'" is likely used for user authentication and may be directly inserted into an SQL query, indicating a high risk of SQL Injection.`
+Example:
+[
+  {{
+    "field": "username",
+    "usage": "login field",
+    "vulnerability": "SQL Injection",
+    "owasp10": "A03: Injection"
+  }}
+]
 
-    - Provide a representative **example payload** for each vulnerability type you identify.  
-      (However, do not force a fixed number like five—just include **valid and plausible** payloads.)
+Do not return anything outside this format.
 
-    - Organize the results by input field or query parameter for clarity.
+---
 
-    ---
+Target URL: {url}
 
-    ### Target Page Information
+[Input Fields]
+{fields_str}
 
-    URL: {url}  
-
-    [Input Field Information]  
-    {fields_str}
-
-    [Query Parameters]  
-    {params_str}
+[Query Parameters]
+{params_str}
     """
-
     return prompt
 
 def query_local_llm(prompt: str) -> str:
     result = subprocess.run(
-        ["ollama", "run", "llama3"],
+        ["ollama", "run", "llama3.2"],
         input=prompt,
         capture_output=True,
         text=True
