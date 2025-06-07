@@ -4,24 +4,12 @@ from bs4 import BeautifulSoup
 import json
 from collections import deque
 
+from config import DYNAMIC_TARGET_ATTRS
+from modules.parser import extract_inputs_with_form_context
 from modules.db import insert_link
 from modules.params import extract_params_from_url
 from modules.url_filter import compile_patterns, is_url_allowed
 from playwright.async_api import async_playwright
-
-TARGET_ATTRS = {"name", "type", "title", "autocomplete", "oninput", "onchange"}
-
-def extract_input_fields(html):
-    soup = BeautifulSoup(html, "html.parser")
-    inputs = []
-    for tag in soup.find_all(["input", "textarea", "select"]):
-        input_info = {}
-        for attr, value in tag.attrs.items():
-            if attr in TARGET_ATTRS or attr.startswith("aria-"):
-                input_info[attr] = value
-        if input_info:
-            inputs.append(input_info)
-    return inputs
 
 def is_supported_scheme(url):
     parsed = urlparse(url)
@@ -63,7 +51,7 @@ async def fetch_page(context, url, depth, parent, include_patterns, exclude_patt
         await page.wait_for_load_state("domcontentloaded")
         content = await page.content()
 
-        input_fields = extract_input_fields(content)
+        input_fields = extract_inputs_with_form_context(content, target_attrs=DYNAMIC_TARGET_ATTRS)
         input_fields_json = json.dumps(input_fields, ensure_ascii=False)
 
         parsed = urlparse(url)
