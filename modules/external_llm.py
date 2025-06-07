@@ -143,3 +143,4 @@ def run_llm_analysis(db_path="data/crawl_links.db"):
 
 if __name__ == "__main__":
     run_llm_analysis()
+    
