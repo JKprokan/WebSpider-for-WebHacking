@@ -62,3 +62,4 @@ if __name__ == '__main__':
     from modules.db import create_table
     create_table()
     webspider()
+    

@@ -148,3 +148,4 @@ async def _run_dynamic_bfs(start_url, max_depth=1, include=None, exclude=None, b
             await asyncio.gather(*tasks)
 
         await browser.close()
+        
