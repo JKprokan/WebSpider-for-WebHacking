@@ -45,9 +45,6 @@ def extract_inputs_with_form_context(html):
 def is_internal_url(url, base_netloc):
     return urlparse(url).netloc.endswith(base_netloc)
 
-def is_internal_url(url, base_netloc):
-    return urlparse(url).netloc.endswith(base_netloc)
-
 def run_static_crawl(start_url, max_depth=1, include=None, exclude=None, mode='dfs'):
     if mode == 'dfs':
         run_static_dfs(start_url, max_depth, include, exclude)
