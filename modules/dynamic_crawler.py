@@ -50,6 +50,19 @@ def is_supported_scheme(url):
 def is_internal_url(url, base_netloc):
     return urlparse(url).netloc.endswith(base_netloc)
 
+def parse_cookie_string(cookie_str, domain):
+    cookies = []
+    for pair in cookie_str.split(";"):
+        if "=" not in pair:
+            continue
+        name, value = pair.strip().split("=", 1)
+        cookies.append({
+            "name": name.strip(),
+            "value": value.strip(),
+            "domain": domain,
+            "path": "/"
+        })
+    return cookies
 
 async def block_unneeded_resources(route):
     if route.request.resource_type in ["image", "font", "stylesheet"]:
@@ -57,12 +70,12 @@ async def block_unneeded_resources(route):
     else:
         await route.continue_()
 
-def run_dynamic_crawl_entry(start_url, max_depth=1, include=None, exclude=None, mode='dfs'):
+def run_dynamic_crawl_entry(start_url, max_depth=1, include=None, exclude=None, mode='dfs', cookie=""):
     base_netloc = urlparse(start_url).netloc
     if mode == 'dfs':
-        asyncio.run(_run_dynamic_dfs(start_url, max_depth, include, exclude, base_netloc))
+        asyncio.run(_run_dynamic_dfs(start_url, max_depth, include, exclude, base_netloc, cookie))
     else:
-        asyncio.run(_run_dynamic_bfs(start_url, max_depth, include, exclude, base_netloc))
+        asyncio.run(_run_dynamic_bfs(start_url, max_depth, include, exclude, base_netloc, cookie))
 
 async def fetch_page(context, url, depth, parent, include_patterns, exclude_patterns, max_depth, visited, container, push, base_netloc):
     if url in visited or depth > max_depth:
@@ -108,7 +121,7 @@ async def fetch_page(context, url, depth, parent, include_patterns, exclude_patt
         print(f"[!] 요청 실패: {url} - {e}")
         await page.close()
 
-async def _run_dynamic_dfs(start_url, max_depth=1, include=None, exclude=None, base_netloc=None):
+async def _run_dynamic_dfs(start_url, max_depth=1, include=None, exclude=None, base_netloc=None, cookie=""):
     visited = set()
     stack = [(start_url, 0, None)]
 
@@ -117,7 +130,14 @@ async def _run_dynamic_dfs(start_url, max_depth=1, include=None, exclude=None, b
 
     async with async_playwright() as playwright:
         browser = await playwright.chromium.launch(headless=True)
-        context = await browser.new_context()
+        context = await browser.new_context(ignore_https_errors=True)
+
+        # 쿠키 설정
+        if cookie:
+            parsed = urlparse(start_url)
+            cookies = parse_cookie_string(cookie, parsed.hostname)
+            await context.add_cookies(cookies)
+
         await context.route("**/*", block_unneeded_resources)
 
         while stack:
@@ -126,7 +146,7 @@ async def _run_dynamic_dfs(start_url, max_depth=1, include=None, exclude=None, b
 
         await browser.close()
 
-async def _run_dynamic_bfs(start_url, max_depth=1, include=None, exclude=None, base_netloc=None):
+async def _run_dynamic_bfs(start_url, max_depth=1, include=None, exclude=None, base_netloc=None, cookie=""):
     visited = set()
     queue = deque()
     queue.append((start_url, 0, None))
@@ -137,15 +157,20 @@ async def _run_dynamic_bfs(start_url, max_depth=1, include=None, exclude=None, b
     async with async_playwright() as playwright:
         browser = await playwright.chromium.launch(headless=True)
         context = await browser.new_context(ignore_https_errors=True)
+
+        # 쿠키 설정
+        if cookie:
+            parsed = urlparse(start_url)
+            cookies = parse_cookie_string(cookie, parsed.hostname)
+            await context.add_cookies(cookies)
+
         await context.route("**/*", block_unneeded_resources)
 
         while queue:
             tasks = []
             for _ in range(min(len(queue), 20)):
                 url, depth, parent = queue.popleft()
-
                 tasks.append(fetch_page(context, url, depth, parent, include_patterns, exclude_patterns, max_depth, visited, queue, deque.append, base_netloc))
             await asyncio.gather(*tasks)
 
         await browser.close()
-        

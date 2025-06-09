@@ -14,32 +14,24 @@ import click
 @click.option('--exclude', default="", help='제외할 키워드 (쉼표로 구분)')
 @click.option('--mode', default='dfs', type=click.Choice(['dfs', 'bfs']), help='탐색 방식 (dfs 또는 bfs)')
 @click.option('--cookie', default="", help='요청에 사용할 쿠키들 (name1 = value1; name2=value2..)')
-@click.option('--bf', type=click.Path(exists=True), help='디렉토리 브루트포싱용 워드리스트 경로')
 
-def webspider(url, depth, static, dynamic, json, csv, graph, frequency, llm, include, exclude, mode, cookie, bf):
+def webspider(url, depth, static, dynamic, json, csv, graph, frequency, llm, include, exclude, mode, cookie):
     click.secho(f"\n [URL] {url}", fg="cyan")
     click.secho(f" [Depth] {depth}", fg="cyan")
 
-    found_urls = []
-
-    if not any([static, dynamic, json, csv, graph, frequency, llm]):
+    if not any([static, dynamic]):
         click.secho(" 실행할 작업을 최소 1개 이상 선택하세요 (예: --static)", fg="yellow")
         return
-
-    if bf:
-        from modules.Directory_Bruteforce import run_dynamic_bruteforce
-        click.secho("[+] 디렉토리 브루트포싱 시작", fg="green")
-        found_urls = run_dynamic_bruteforce(url, bf, cookie)
 
     if static:
         from modules.static_crawler import run_static_crawl
         click.secho("[+] 정적 크롤링 시작", fg="green")
-        run_static_crawl(url, depth, include, exclude, mode, cookie, seed_urls=found_urls)
+        run_static_crawl(url, depth, include, exclude, mode, cookie)
 
     if dynamic:
         from modules.dynamic_crawler import run_dynamic_crawl_entry
         click.secho("[+] 동적 크롤링 시작", fg="green")
-        run_dynamic_crawl_entry(url, depth, include, exclude, mode, cookie, seed_urls=found_urls)
+        run_dynamic_crawl_entry(url, depth, include, exclude, mode, cookie)
         
     if json:
         from modules.export import export_json

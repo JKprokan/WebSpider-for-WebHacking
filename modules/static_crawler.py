@@ -45,21 +45,35 @@ def extract_inputs_with_form_context(html):
 def is_internal_url(url, base_netloc):
     return urlparse(url).netloc.endswith(base_netloc)
 
-def run_static_crawl(start_url, max_depth=1, include=None, exclude=None, mode='dfs'):
-    if mode == 'dfs':
-        run_static_dfs(start_url, max_depth, include, exclude)
-    else:
-        run_static_bfs(start_url, max_depth, include, exclude)
+def parse_cookie_string(cookie_str):
+    cookies = {}
+    for pair in cookie_str.split(";"):
+        if "=" in pair:
+            name, value = pair.strip().split("=", 1)
+            cookies[name.strip()] = value.strip()
+    return cookies
 
-def run_static_dfs(start_url, max_depth, include, exclude):
+def run_static_crawl(start_url, max_depth=1, include=None, exclude=None, mode='dfs', cookie=""):
+    if mode == 'dfs':
+        run_static_dfs(start_url, max_depth, include, exclude, cookie)
+    else:
+        run_static_bfs(start_url, max_depth, include, exclude, cookie)
+
+
+def run_static_dfs(start_url, max_depth, include, exclude, cookie=""):
     visited = set()
     stack = [(start_url, 0, None)]
 
     include_patterns = compile_patterns(include)
     exclude_patterns = compile_patterns(exclude)
 
-
     base_netloc = urlparse(start_url).netloc
+
+    session = requests.Session()
+    session.headers.update({"User-Agent": "Mozilla/5.0"})
+    if cookie:
+        for k, v in parse_cookie_string(cookie).items():
+            session.cookies.set(k, v)
 
     while stack:
         url, depth, parent = stack.pop()
@@ -71,7 +85,7 @@ def run_static_dfs(start_url, max_depth, include, exclude):
         print(f"[Depth {depth}] 수집: {url}")
 
         try:
-            res = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=5)
+            res = session.get(url, timeout=5)
             res.raise_for_status()
         except Exception as e:
             print(f"[!] 요청 실패: {url} - {e}")
@@ -101,7 +115,7 @@ def run_static_dfs(start_url, max_depth, include, exclude):
 
             stack.append((next_url, depth + 1, url))
 
-def run_static_bfs(start_url, max_depth, include, exclude):
+def run_static_bfs(start_url, max_depth, include, exclude, cookie=""):
     visited = set()
     queue = deque()
     queue.append((start_url, 0, None))
@@ -110,6 +124,12 @@ def run_static_bfs(start_url, max_depth, include, exclude):
     exclude_patterns = compile_patterns(exclude)
 
     base_netloc = urlparse(start_url).netloc
+
+    session = requests.Session()
+    session.headers.update({"User-Agent": "Mozilla/5.0"})
+    if cookie:
+        for k, v in parse_cookie_string(cookie).items():
+            session.cookies.set(k, v)
 
     while queue:
         url, depth, parent = queue.popleft()
@@ -121,7 +141,7 @@ def run_static_bfs(start_url, max_depth, include, exclude):
         print(f"[Depth {depth}] 수집: {url}")
 
         try:
-            res = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=5)
+            res = session.get(url, timeout=5)
             res.raise_for_status()
         except Exception as e:
             print(f"[!] 요청 실패: {url} - {e}")
@@ -146,7 +166,6 @@ def run_static_bfs(start_url, max_depth, include, exclude):
 
             if not is_internal_url(next_url, base_netloc):
                 continue
-            
             if not is_url_allowed(next_url, include_patterns, exclude_patterns):
                 continue
 
