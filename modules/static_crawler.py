@@ -4,43 +4,11 @@ from urllib.parse import urljoin, urlparse
 import json
 from collections import deque
 
+from modules.config import STATIC_TARGET_ATTRS
+from modules.parser import extract_inputs_with_form_context
 from modules.db import insert_link
 from modules.params import extract_params_from_url
 from modules.url_filter import compile_patterns, is_url_allowed
-
-TARGET_ATTRS = {"name", "type", "title", "autocomplete", "value"}
-
-def extract_inputs_with_form_context(html):
-    soup = BeautifulSoup(html, "html.parser")
-    results = []
-
-    # 먼저 form 내부 input 수집
-    form_input_ids = set()
-    for form in soup.find_all("form"):
-        method = form.get("method", "").upper()
-        action = form.get("action", "")
-        for tag in form.find_all(["input", "textarea", "select"]):
-            input_info = {}
-            for attr, value in tag.attrs.items():
-                if attr in TARGET_ATTRS or attr.startswith("aria-"):
-                    input_info[attr] = value
-            if input_info:
-                input_info["form_method"] = method
-                input_info["form_action"] = action
-                results.append(input_info)
-            form_input_ids.add(id(tag))
-
-    # form 외부 input 수집
-    for tag in soup.find_all(["input", "textarea", "select"]):
-        if id(tag) not in form_input_ids:
-            input_info = {}
-            for attr, value in tag.attrs.items():
-                if attr in TARGET_ATTRS or attr.startswith("aria-"):
-                    input_info[attr] = value
-            if input_info:
-                results.append(input_info)
-
-    return results
 
 def is_internal_url(url, base_netloc):
     return urlparse(url).netloc.endswith(base_netloc)
@@ -96,7 +64,7 @@ def run_static_dfs(start_url, max_depth, include, exclude, cookie=""):
         query_dict = extract_params_from_url(url)
         query_params = json.dumps(query_dict, ensure_ascii=False)
 
-        input_fields = extract_inputs_with_form_context(res.text)
+        input_fields = extract_inputs_with_form_context(res.text, target_attrs=STATIC_TARGET_ATTRS)
         input_fields_json = json.dumps(input_fields, ensure_ascii=False)
 
         insert_link(url, parent, depth, host, query_params, input_fields_json)
@@ -152,7 +120,7 @@ def run_static_bfs(start_url, max_depth, include, exclude, cookie=""):
         query_dict = extract_params_from_url(url)
         query_params = json.dumps(query_dict, ensure_ascii=False)
 
-        input_fields = extract_inputs_with_form_context(res.text)
+        input_fields = extract_inputs_with_form_context(res.text, target_attrs=STATIC_TARGET_ATTRS)
         input_fields_json = json.dumps(input_fields, ensure_ascii=False)
 
         insert_link(url, parent, depth, host, query_params, input_fields_json)
