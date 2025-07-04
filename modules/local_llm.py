@@ -19,22 +19,93 @@ def build_prompt(url, input_fields, query_params):
     json_str = json.dumps(user_content, ensure_ascii=False, separators=(',', ':'))
     prompt = (
         "<s>[INST] "
-        "Analyze the following input fields and query parameters for security vulnerabilities. "
-        "Respond only with pretty-printed JSON (with indentation and line breaks), and do not include any explanations or markdown formatting. "
+        "You are an expert web security analyst. Your task is to analyze the provided web page data for potential vulnerabilities based on common attack patterns and context. "
+        "Your response MUST be a single, valid, pretty-printed JSON object OR a JSON array of objects `[{}, {}, ...]` if you find multiple vulnerabilities. "
+        "Do not include any other text, explanations, or markdown. "
+        
+        "The JSON object(s) must include: "
+        '"category", "attack_type", "parameter", "usage", "payload", "tool", "indicator", "confidence_score", "reasoning". '
+        
+        "**Crucial Instructions for `confidence_score` and `reasoning`:** "
+        "Your `confidence_score` (float from 0.0 to 1.0) and `reasoning` (string) MUST be based on the following expert heuristics: "
+        
+        "1. **SQL Injection (SQLi):** "
+        "   - **HIGH (0.8-1.0):** Assign for parameters like `id`, `password`, `search`, `user_id`, `uid`. "
+        "   - **LOW (0.1-0.3):** Assign for generic fields like `comment`, `message`. "
+        
+        "2. **Cross-Site Scripting (XSS):** "
+        "   - **HIGH (0.8-1.0):** Assign for fields where user input is displayed, like `comment`, `message`, `post`, `searchK`, especially in URLs with `/board/`, `/view/`. "
+
+        "3. **Open Redirect:** "
+        "   - **HIGH (0.8-1.0):** Assign for query parameters named `url`, `redirect`, `next`, `goto`, `return_to` that contain a URL as their value. "
+        
+        "4. **Command Injection:** "
+        "   - **VERY LOW (0.1-0.2):** Assign only for highly suggestive names like `cmd`, `exec`. Never assign high confidence for this in fields like `comment` or `_csrf`. "
+
+        "5. **No Vulnerability Found:** "
+        "   - If no vulnerability is reasonably suspected, you MUST respond with an empty JSON array `[]`. "
+
+        "- Your `reasoning` MUST explicitly state which rule you followed. "
+        "- Do not analyze security tokens like `_csrf` as attackable parameters. "
+        
+        "Analyze ALL provided `input_fields` and `query_params`. If you find vulnerabilities in multiple fields/params, return one JSON object for each in a single JSON array. "
+        "Analyze the following data: "
         f"{json_str} [/INST]"
     )
     return prompt
 
-def extract_json_from_text(text):
+def extract_json_from_text(text: str) -> str:
     """
-    텍스트에서 가장 첫 '{'와 마지막 '}' 사이만 추출
-    (LLM이 앞뒤로 텍스트를 붙여도 JSON만 파싱할 수 있도록)
+    텍스트에서 JSON 객체 또는 배열을 추출합니다. LLM의 일반적인 형식 오류를 수정합니다.
     """
-    start = text.find('{')
-    end = text.rfind('}')
-    if start != -1 and end != -1 and end > start:
-        return text[start:end+1]
-    return text
+    # LLM이 `[{}],[{}]` 와 같이 잘못된 형식을 생성하는 경우를 대비해 정리
+    # 여러 줄에 걸쳐 있을 수 있는 패턴도 처리
+    cleaned_text = text.replace("]\n,[", ",").replace("], [", ",").replace("],[", ",")
+
+    # 1. JSON 배열 `[...]` 먼저 시도
+    start_arr = cleaned_text.find('[')
+    end_arr = cleaned_text.rfind(']')
+    if start_arr != -1 and end_arr != -1 and end_arr > start_arr:
+        json_part = cleaned_text[start_arr:end_arr+1]
+        try:
+            # 파싱 전에 최종적으로 한 번 더 정리
+            json.loads(json_part)
+            return json_part
+        except json.JSONDecodeError:
+            pass # 객체 시도로 넘어감
+
+    # 2. JSON 객체 `{...}` 시도
+    start_obj = cleaned_text.find('{')
+    end_obj = cleaned_text.rfind('}')
+    if start_obj != -1 and end_obj != -1 and end_obj > start_obj:
+        # 배열 안에 있는 객체가 아닌지 확인
+        if not (start_arr != -1 and end_arr != -1 and start_arr < start_obj and end_obj < end_arr):
+             json_part = cleaned_text[start_obj:end_obj+1]
+             try:
+                json.loads(json_part)
+                return json_part
+             except json.JSONDecodeError:
+                pass
+
+    # 3. 키: 값 형태의 비정형 텍스트를 JSON 객체로 변환 (단일 객체만 지원)
+    if '[' not in cleaned_text and ':' in cleaned_text:
+        lines = cleaned_text.strip().split('\n')
+        json_dict = {}
+        for line in lines:
+            if ':' in line:
+                key, value = line.split(':', 1)
+                key = key.strip().replace('"', '').replace("'", "")
+                value = value.strip()
+                if value.endswith(','):
+                    value = value[:-1]
+                if (value.startswith('"') and value.endswith('"')) or (value.startswith("'" ) and value.endswith("'")):
+                    value = value[1:-1]
+                json_dict[key] = value
+        
+        if json_dict:
+            return json.dumps(json_dict, indent=2, ensure_ascii=False)
+
+    return text # 모든 방법이 실패하면 원본 반환
 
 def pretty_fieldwise_click_secho(parsed, color="green"):
     """
@@ -69,7 +140,7 @@ def query_local_llm(prompt: str) -> str:
         click.secho(f"[!] Ollama 실행 실패: {e}", fg="red")
         return ""
 
-def run_llm_analysis(db_path="data/crawl_links.db"):
+def run_llm_analysis(db_path, url):
     """
     전체 분석 워크플로우
     """
@@ -79,7 +150,7 @@ def run_llm_analysis(db_path="data/crawl_links.db"):
         cursor.execute("""
             SELECT link, input_fields, query_params
             FROM crawl_links
-            WHERE input_fields IS NOT NULL AND input_fields != '[]'
+            WHERE (input_fields IS NOT NULL AND input_fields != '[]') OR (query_params IS NOT NULL AND query_params != '{}')
         """)
         rows = cursor.fetchall()
         conn.close()
@@ -88,21 +159,21 @@ def run_llm_analysis(db_path="data/crawl_links.db"):
         return
 
     if not rows:
-        click.secho("[!] 분석할 대상이 없습니다. (input_fields 없음)", fg="yellow")
+        click.secho("[!] 분석할 대상이 없습니다.", fg="yellow")
         return
 
-    click.secho(f"[+] 입력 필드가 있는 URL {len(rows)}개 분석 시작", fg="cyan")
+    click.secho(f"[+] 분석 대상 URL {len(rows)}개 분석 시작", fg="cyan")
 
     for url, input_fields_json, query_params_json in rows:
         try:
             raw_fields = json.loads(input_fields_json)
             fields = build_field_list(raw_fields)
-            if not fields:
-                click.secho(f"\n[🔍] {url}\n  (의미 있는 입력 필드가 없어 분석 생략)", fg="yellow")
-                continue
             query_params = json.loads(query_params_json) if query_params_json else {}
         except Exception as e:
-            click.secho(f"[!] JSON 파싱 실패: {url} - {e}", fg="red")
+            click.secho(f"[!] 데이터 파싱 실패: {url} - {e}", fg="red")
+            continue
+
+        if not fields and not query_params:
             continue
 
         click.secho(f"\n[🔍] {url}", fg="blue")
@@ -118,7 +189,23 @@ def run_llm_analysis(db_path="data/crawl_links.db"):
                 try:
                     pure_json = extract_json_from_text(result)
                     parsed = json.loads(pure_json)
-                    pretty_fieldwise_click_secho(parsed, color="green")
+                    
+                    if isinstance(parsed, list) and not parsed:
+                        click.secho(f"  (분석 결과 없음)", fg="yellow")
+                        continue
+
+                    if isinstance(parsed, list):
+                        filtered_results = [res for res in parsed if res.get("confidence_score", 0.0) >= 0.1]
+                        if not filtered_results:
+                            click.secho(f"  (낮은 신뢰도 결과만 있어 생략)", fg="yellow")
+                            continue
+                        pretty_fieldwise_click_secho(filtered_results, color="green")
+                    elif isinstance(parsed, dict):
+                        if parsed.get("confidence_score", 0.0) < 0.1:
+                            click.secho(f"  (낮은 신뢰도({parsed.get('confidence_score')})로 결과 생략)", fg="yellow")
+                            continue
+                        pretty_fieldwise_click_secho(parsed, color="green")
+
                 except Exception as e:
                     click.secho(f"[!] JSON 파싱 실패 또는 예상 외 포맷: {e}", fg="red")
                     click.secho(result, fg="green")

@@ -1,6 +1,7 @@
 from bs4 import BeautifulSoup
+from modules.config import TARGET_ATTRIBUTES
 
-def extract_inputs_with_form_context(html: str, target_attrs: set) -> list:
+def extract_inputs_with_form_context(html: str) -> list:
     soup = BeautifulSoup(html, "html.parser")
     results = []
 
@@ -12,7 +13,7 @@ def extract_inputs_with_form_context(html: str, target_attrs: set) -> list:
             input_info = {
                 attr: value
                 for attr, value in tag.attrs.items()
-                if attr in target_attrs or attr.startswith("aria-")
+                if attr in TARGET_ATTRIBUTES or attr.startswith("aria-")
             }
             if input_info:
                 input_info["form_method"] = method
@@ -25,7 +26,7 @@ def extract_inputs_with_form_context(html: str, target_attrs: set) -> list:
             input_info = {
                 attr: value
                 for attr, value in tag.attrs.items()
-                if attr in target_attrs or attr.startswith("aria-")
+                if attr in TARGET_ATTRIBUTES or attr.startswith("aria-")
             }
             if input_info:
                 results.append(input_info)

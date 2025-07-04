@@ -4,10 +4,10 @@ from collections import Counter, defaultdict
 from urllib.parse import urlparse
 import re
 
-DB_PATH = "data/crawl_links.db"
+# DB_PATH는 이제 함수 인자로 전달됩니다.
 
-def analyze_input_fields():
-    conn = sqlite3.connect(DB_PATH)
+def analyze_input_fields(db_path):
+    conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     cursor.execute("SELECT input_fields FROM crawl_links WHERE input_fields != '[]'")
     rows = cursor.fetchall()
@@ -39,8 +39,8 @@ def analyze_input_fields():
         }
     }
 
-def analyze_url_patterns():
-    conn = sqlite3.connect(DB_PATH)
+def analyze_url_patterns(db_path):
+    conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     cursor.execute("SELECT link, host FROM crawl_links")
     rows = cursor.fetchall()
@@ -82,8 +82,8 @@ def analyze_url_patterns():
         'directories': dict(directories.most_common(30))
     }
 
-def analyze_parameters():
-    conn = sqlite3.connect(DB_PATH)
+def analyze_parameters(db_path):
+    conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     cursor.execute("SELECT query_params FROM crawl_links WHERE query_params != '{}' ")
     rows = cursor.fetchall()
@@ -110,8 +110,8 @@ def analyze_parameters():
         }
     }
 
-def analyze_depth_statistics():
-    conn = sqlite3.connect(DB_PATH)
+def analyze_depth_statistics(db_path):
+    conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     cursor.execute("SELECT depth, COUNT(*) as count FROM crawl_links GROUP BY depth ORDER BY depth")
     depth_counts = dict(cursor.fetchall())
@@ -142,8 +142,8 @@ def analyze_depth_statistics():
         'params_per_depth': depth_params
     }
 
-def find_interesting_patterns():
-    conn = sqlite3.connect(DB_PATH)
+def find_interesting_patterns(db_path):
+    conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     cursor.execute("SELECT link, input_fields, query_params FROM crawl_links")
     rows = cursor.fetchall()
@@ -195,12 +195,12 @@ def find_interesting_patterns():
     
     return suspicious_patterns
 
-def generate_frequency_report():
+def generate_frequency_report(db_path):
     print("\n" + "="*80)
     print("FREQUENCY ANALYSIS REPORT")
     print("="*80)
     
-    input_analysis = analyze_input_fields()
+    input_analysis = analyze_input_fields(db_path)
     print("\nINPUT FIELDS ANALYSIS")
     print("-" * 40)
     print("Top Field Types:")
@@ -211,7 +211,7 @@ def generate_frequency_report():
     for field_name, count in list(input_analysis['field_names'].items())[:10]:
         print(f"  {field_name}: {count}")
  
-    url_analysis = analyze_url_patterns()
+    url_analysis = analyze_url_patterns(db_path)
     print("\nURL PATTERNS ANALYSIS")
     print("-" * 40)
     print("Top Extensions:")
@@ -222,14 +222,14 @@ def generate_frequency_report():
     for subdomain, count in list(url_analysis['subdomains'].items())[:10]:
         print(f"  {subdomain}: {count}")
  
-    param_analysis = analyze_parameters()
+    param_analysis = analyze_parameters(db_path)
     print("\nPARAMETERS ANALYSIS")
     print("-" * 40)
     print("Top Parameter Names:")
     for param, count in list(param_analysis['parameter_names'].items())[:10]:
         print(f"  {param}: {count}")
  
-    depth_stats = analyze_depth_statistics()
+    depth_stats = analyze_depth_statistics(db_path)
     print("\nDEPTH STATISTICS")
     print("-" * 40)
     for depth, count in depth_stats['pages_per_depth'].items():
@@ -237,7 +237,7 @@ def generate_frequency_report():
         params = depth_stats['params_per_depth'].get(depth, 0)
         print(f"  Depth {depth}: {count} pages ({inputs} with inputs, {params} with params)")
   
-    patterns = find_interesting_patterns()
+    patterns = find_interesting_patterns(db_path)
     print("\nINTERESTING PATTERNS")
     print("-" * 40)
     for pattern_type, urls in patterns.items():

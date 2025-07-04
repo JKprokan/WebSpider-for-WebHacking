@@ -1,5 +1,4 @@
-from modules.db import create_table
-create_table()
+from modules.db import create_table, get_db_path
 import click
 from urllib.parse import urlparse
 
@@ -17,56 +16,60 @@ from urllib.parse import urlparse
 @click.option('--exclude', default="", help='제외할 키워드 (쉼표로 구분)')
 @click.option('--mode', default='dfs', type=click.Choice(['dfs', 'bfs']), help='탐색 방식 (dfs 또는 bfs)')
 @click.option('--cookie', default="", help='요청에 사용할 쿠키들 (name1 = value1; name2=value2..)')
+@click.option('--ignore-robots', is_flag=True, help='robots.txt 규칙 무시')
 
-def webspider(url, depth, static, dynamic, json, csv, graph, frequency, llm, include, exclude, mode, cookie):
+def webspider(url, depth, static, dynamic, json, csv, graph, frequency, llm, include, exclude, mode, cookie, ignore_robots):
     parsed = urlparse(url)
     if parsed.scheme not in ("http", "https"):
         click.secho("URL 형식이 잘못되었습니다. “http://” 또는 “https://” 로 시작해야 합니다.", fg="red")
         return
     
+    # DB 파일 경로 설정
+    db_path = get_db_path(url)
+    create_table(db_path)
+
     click.secho(f"\n [URL] {url}", fg="cyan")
     click.secho(f" [Depth] {depth}", fg="cyan")
 
-    if not any([static, dynamic]):
-        click.secho(" 실행할 작업을 최소 1개 이상 선택하세요 (예: --static)", fg="yellow")
-        return
+    # --static 또는 --dynamic 옵션이 없으면 --static을 기본으로 설정
+    if not static and not dynamic:
+        static = True
+        click.secho(" 크롤링 방식이 지정되지 않아 정적 크롤링(--static)을 기본으로 수행합니다.", fg="yellow")
 
     if static:
-        from modules.static_crawler import run_static_crawl
+        from modules.static_crawler import run_static_crawl_entry
         click.secho("[+] 정적 크롤링 시작", fg="green")
-        run_static_crawl(url, depth, include, exclude, mode, cookie)
+        run_static_crawl_entry(url, depth, include, exclude, mode, cookie, db_path, ignore_robots)
 
     if dynamic:
         from modules.dynamic_crawler import run_dynamic_crawl_entry
         click.secho("[+] 동적 크롤링 시작", fg="green")
-        run_dynamic_crawl_entry(url, depth, include, exclude, mode, cookie)
+        run_dynamic_crawl_entry(url, depth, include, exclude, mode, cookie, db_path, ignore_robots)
         
     if json:
         from modules.export import export_json
         click.secho("[+] JSON 파일 추출", fg="green")
-        export_json()
+        export_json(db_path, url)
 
     if csv:
         from modules.export import export_csv
         click.secho("[+] CSV 파일 추출", fg="green")
-        export_csv()
+        export_csv(db_path, url)
 
     if graph:
         from modules.visualize import generate_interactive_graph
         click.secho("[+] 인터랙티브 그래프 생성", fg="green")
-        generate_interactive_graph()
+        generate_interactive_graph(db_path, url)
 
     if frequency:
         from modules.frequency import generate_frequency_report
         click.secho("[+] 빈도 분석 리포트 생성", fg="green")
-        generate_frequency_report()
+        generate_frequency_report(db_path)
         
     if llm:
-        from modules.local_llm import run_llm_analysis #현재 로컬(내부)LLM으로 설정, 외부llm하고싶은 경우 -> modules.external_llm
+        from modules.local_llm import run_llm_analysis
         click.secho("[+] LLM 연계 취약점 분석 실행", fg="green")
-        run_llm_analysis()
+        run_llm_analysis(db_path, url)
         
 if __name__ == '__main__':
-    from modules.db import create_table
-    create_table()
     webspider()

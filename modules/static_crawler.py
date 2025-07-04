@@ -3,8 +3,9 @@ from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse
 import json
 from collections import deque
+from urllib import robotparser
 
-from modules.config import STATIC_TARGET_ATTRS
+from modules.config import TARGET_ATTRIBUTES
 from modules.parser import extract_inputs_with_form_context
 from modules.db import insert_link
 from modules.params import extract_params_from_url
@@ -21,20 +22,16 @@ def parse_cookie_string(cookie_str):
             cookies[name.strip()] = value.strip()
     return cookies
 
-def run_static_crawl(start_url, max_depth=1, include=None, exclude=None, mode='dfs', cookie=""):
-    if mode == 'dfs':
-        run_static_dfs(start_url, max_depth, include, exclude, cookie)
-    else:
-        run_static_bfs(start_url, max_depth, include, exclude, cookie)
-
-def run_static_dfs(start_url, max_depth, include, exclude, cookie=""):
-    visited = set()
-    stack = [(start_url, 0, None)]
-
-    include_patterns = compile_patterns(include)
-    exclude_patterns = compile_patterns(exclude)
-
+def run_static_crawl_entry(start_url, max_depth=1, include=None, exclude=None, mode='dfs', cookie="", db_path="", ignore_robots=False):
     base_netloc = urlparse(start_url).netloc
+    
+    rp = robotparser.RobotFileParser()
+    if not ignore_robots:
+        try:
+            rp.set_url(urljoin(start_url, "/robots.txt"))
+            rp.read()
+        except Exception as e:
+            print(f"[!] robots.txt 읽기 실패: {e}")
 
     session = requests.Session()
     session.headers.update({"User-Agent": "Mozilla/5.0"})
@@ -42,12 +39,28 @@ def run_static_dfs(start_url, max_depth, include, exclude, cookie=""):
         for k, v in parse_cookie_string(cookie).items():
             session.cookies.set(k, v)
 
+    include_patterns = compile_patterns(include)
+    exclude_patterns = compile_patterns(exclude)
+
+    if mode == 'dfs':
+        _run_static_dfs(start_url, max_depth, include_patterns, exclude_patterns, base_netloc, session, db_path, rp, ignore_robots)
+    else:
+        _run_static_bfs(start_url, max_depth, include_patterns, exclude_patterns, base_netloc, session, db_path, rp, ignore_robots)
+
+def _run_static_dfs(start_url, max_depth, include_patterns, exclude_patterns, base_netloc, session, db_path, rp, ignore_robots):
+    visited = set()
+    stack = [(start_url, 0, None)]
+
     while stack:
         url, depth, parent = stack.pop()
 
         if url in visited or depth > max_depth:
             continue
         visited.add(url)
+
+        if not ignore_robots and not rp.can_fetch("*", url):
+            print(f"[!] robots.txt 에 의해 차단: {url}")
+            continue
 
         print(f"[Depth {depth}] 수집: {url}")
 
@@ -59,15 +72,15 @@ def run_static_dfs(start_url, max_depth, include, exclude, cookie=""):
             print(f"[!] 요청 실패: {url} - {e}")
             continue
 
-        parsed = urlparse(url)
-        host = parsed.netloc
+        parsed_url = urlparse(url)
+        host = parsed_url.netloc
         query_dict = extract_params_from_url(url)
         query_params = json.dumps(query_dict, ensure_ascii=False)
 
-        input_fields = extract_inputs_with_form_context(res.text, target_attrs=STATIC_TARGET_ATTRS)
+        input_fields = extract_inputs_with_form_context(res.text)
         input_fields_json = json.dumps(input_fields, ensure_ascii=False)
 
-        insert_link(url, parent, depth, host, query_params, input_fields_json)
+        insert_link(db_path, url, parent, depth, host, query_params, input_fields_json)
 
         if depth == max_depth:
             continue
@@ -83,21 +96,10 @@ def run_static_dfs(start_url, max_depth, include, exclude, cookie=""):
 
             stack.append((next_url, depth + 1, url))
 
-def run_static_bfs(start_url, max_depth, include, exclude, cookie=""):
+def _run_static_bfs(start_url, max_depth, include_patterns, exclude_patterns, base_netloc, session, db_path, rp, ignore_robots):
     visited = set()
     queue = deque()
     queue.append((start_url, 0, None))
-
-    include_patterns = compile_patterns(include)
-    exclude_patterns = compile_patterns(exclude)
-
-    base_netloc = urlparse(start_url).netloc
-
-    session = requests.Session()
-    session.headers.update({"User-Agent": "Mozilla/5.0"})
-    if cookie:
-        for k, v in parse_cookie_string(cookie).items():
-            session.cookies.set(k, v)
 
     while queue:
         url, depth, parent = queue.popleft()
@@ -105,6 +107,10 @@ def run_static_bfs(start_url, max_depth, include, exclude, cookie=""):
         if url in visited or depth > max_depth:
             continue
         visited.add(url)
+
+        if not ignore_robots and not rp.can_fetch("*", url):
+            print(f"[!] robots.txt 에 의해 차단: {url}")
+            continue
 
         print(f"[Depth {depth}] 수집: {url}")
 
@@ -116,15 +122,15 @@ def run_static_bfs(start_url, max_depth, include, exclude, cookie=""):
             print(f"[!] 요청 실패: {url} - {e}")
             continue
 
-        parsed = urlparse(url)
-        host = parsed.netloc
+        parsed_url = urlparse(url)
+        host = parsed_url.netloc
         query_dict = extract_params_from_url(url)
         query_params = json.dumps(query_dict, ensure_ascii=False)
 
-        input_fields = extract_inputs_with_form_context(res.text, target_attrs=STATIC_TARGET_ATTRS)
+        input_fields = extract_inputs_with_form_context(res.text)
         input_fields_json = json.dumps(input_fields, ensure_ascii=False)
 
-        insert_link(url, parent, depth, host, query_params, input_fields_json)
+        insert_link(db_path, url, parent, depth, host, query_params, input_fields_json)
 
         if depth == max_depth:
             continue

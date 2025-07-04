@@ -3,8 +3,9 @@ from urllib.parse import urljoin, urlparse
 from bs4 import BeautifulSoup
 import json
 from collections import deque
+from urllib import robotparser
 
-from modules.config import DYNAMIC_TARGET_ATTRS
+from modules.config import TARGET_ATTRIBUTES
 from modules.parser import extract_inputs_with_form_context
 from modules.db import insert_link
 from modules.params import extract_params_from_url
@@ -38,17 +39,33 @@ async def block_unneeded_resources(route):
     else:
         await route.continue_()
 
-def run_dynamic_crawl_entry(start_url, max_depth=1, include=None, exclude=None, mode='dfs', cookie=""):
+def run_dynamic_crawl_entry(start_url, max_depth=1, include=None, exclude=None, mode='dfs', cookie="", db_path="", ignore_robots=False):
     base_netloc = urlparse(start_url).netloc
-    if mode == 'dfs':
-        asyncio.run(_run_dynamic_dfs(start_url, max_depth, include, exclude, base_netloc, cookie))
-    else:
-        asyncio.run(_run_dynamic_bfs(start_url, max_depth, include, exclude, base_netloc, cookie))
 
-async def fetch_page(context, url, depth, parent, include_patterns, exclude_patterns, max_depth, visited, container, push, base_netloc):
+    rp = robotparser.RobotFileParser()
+    if not ignore_robots:
+        try:
+            rp.set_url(urljoin(start_url, "/robots.txt"))
+            rp.read()
+        except Exception as e:
+            print(f"[!] robots.txt 읽기 실패: {e}")
+    
+    include_patterns = compile_patterns(include)
+    exclude_patterns = compile_patterns(exclude)
+
+    if mode == 'dfs':
+        asyncio.run(_run_dynamic_dfs(start_url, max_depth, include_patterns, exclude_patterns, base_netloc, cookie, db_path, rp, ignore_robots))
+    else:
+        asyncio.run(_run_dynamic_bfs(start_url, max_depth, include_patterns, exclude_patterns, base_netloc, cookie, db_path, rp, ignore_robots))
+
+async def fetch_page(context, url, depth, parent, include_patterns, exclude_patterns, max_depth, visited, container, push, base_netloc, db_path, rp, ignore_robots):
     if url in visited or depth > max_depth:
         return
     visited.add(url)
+
+    if not ignore_robots and not rp.can_fetch("*", url):
+        print(f"[!] robots.txt 에 의해 차단: {url}")
+        return
 
     print(f"[Depth {depth}] 수집 : {url}")
 
@@ -59,7 +76,7 @@ async def fetch_page(context, url, depth, parent, include_patterns, exclude_patt
         content = await page.content()
         soup = BeautifulSoup(content, "html.parser") 
 
-        input_fields = extract_inputs_with_form_context(content, target_attrs=DYNAMIC_TARGET_ATTRS)
+        input_fields = extract_inputs_with_form_context(content)
         input_fields_json = json.dumps(input_fields, ensure_ascii=False)
 
         parsed = urlparse(url)
@@ -67,7 +84,7 @@ async def fetch_page(context, url, depth, parent, include_patterns, exclude_patt
         query_dict = extract_params_from_url(url)
         query_params = json.dumps(query_dict, ensure_ascii=False)
 
-        insert_link(url, parent, depth, host, query_params, input_fields_json)
+        insert_link(db_path, url, parent, depth, host, query_params, input_fields_json)
 
         if depth == max_depth:
             await page.close()
@@ -87,14 +104,11 @@ async def fetch_page(context, url, depth, parent, include_patterns, exclude_patt
 
     except Exception as e:
         print(f"[!] 요청 실패: {url} - {e}")
-        await page.close()
+        # await page.close() # 페이지가 열리지 않았을 수도 있으므로 주석 처리
 
-async def _run_dynamic_dfs(start_url, max_depth=1, include=None, exclude=None, base_netloc=None, cookie=""):
+async def _run_dynamic_dfs(start_url, max_depth, include_patterns, exclude_patterns, base_netloc, cookie, db_path, rp, ignore_robots):
     visited = set()
     stack = [(start_url, 0, None)]
-
-    include_patterns = compile_patterns(include)
-    exclude_patterns = compile_patterns(exclude)
 
     async with async_playwright() as playwright:
         browser = await playwright.chromium.launch(headless=True)
@@ -110,17 +124,14 @@ async def _run_dynamic_dfs(start_url, max_depth=1, include=None, exclude=None, b
 
         while stack:
             url, depth, parent = stack.pop()
-            await fetch_page(context, url, depth, parent, include_patterns, exclude_patterns, max_depth, visited, stack, list.append, base_netloc)
+            await fetch_page(context, url, depth, parent, include_patterns, exclude_patterns, max_depth, visited, stack, list.append, base_netloc, db_path, rp, ignore_robots)
 
         await browser.close()
 
-async def _run_dynamic_bfs(start_url, max_depth=1, include=None, exclude=None, base_netloc=None, cookie=""):
+async def _run_dynamic_bfs(start_url, max_depth, include_patterns, exclude_patterns, base_netloc, cookie, db_path, rp, ignore_robots):
     visited = set()
     queue = deque()
     queue.append((start_url, 0, None))
-
-    include_patterns = compile_patterns(include)
-    exclude_patterns = compile_patterns(exclude)
 
     async with async_playwright() as playwright:
         browser = await playwright.chromium.launch(headless=True)
@@ -136,9 +147,9 @@ async def _run_dynamic_bfs(start_url, max_depth=1, include=None, exclude=None, b
 
         while queue:
             tasks = []
-            for _ in range(min(len(queue), 20)):
+            for _ in range(min(len(queue), 20)): # 동시성 제한
                 url, depth, parent = queue.popleft()
-                tasks.append(fetch_page(context, url, depth, parent, include_patterns, exclude_patterns, max_depth, visited, queue, deque.append, base_netloc))
+                tasks.append(fetch_page(context, url, depth, parent, include_patterns, exclude_patterns, max_depth, visited, queue, deque.append, base_netloc, db_path, rp, ignore_robots))
             await asyncio.gather(*tasks)
 
         await browser.close()
