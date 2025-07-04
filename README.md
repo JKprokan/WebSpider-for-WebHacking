@@ -36,7 +36,7 @@ LLM(로컬 AI) 기반 자동 보안 분석까지 모두 지원하는 커맨드�
 
 ## 사용 예시
 
-`whspider -u https://target.com --static --depth 2 --json --graph --llm`
+`whspider -u "https://target.com" --static --depth 2 --graph --llm`
 
 ### 주요 옵션 안내
 
