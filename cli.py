@@ -22,7 +22,7 @@ def webspider(url, depth, static, dynamic, json, csv, graph, frequency, llm, inc
     parsed = urlparse(url)
     if parsed.scheme not in ("http", "https"):
         click.secho("URL 형식이 잘못되었습니다. “http://” 또는 “https://” 로 시작해야 합니다.", fg="red")
-    return
+        return
     
     click.secho(f"\n [URL] {url}", fg="cyan")
     click.secho(f" [Depth] {depth}", fg="cyan")
