@@ -1,10 +1,8 @@
-#진석 코드
 import sqlite3
 import json
 import click
 import subprocess
 from urllib.parse import urlparse, parse_qs
-
 
 def build_field_list(input_fields_raw: list) -> list:
     return [
@@ -12,69 +10,69 @@ def build_field_list(input_fields_raw: list) -> list:
         if any(k in field for k in ("name", "aria-label", "title"))
     ]
 
-
-def extract_query_params(url: str) -> dict:
-    try:
-        parsed = urlparse(url)
-        return parse_qs(parsed.query)
-    except:
-        return {}
-
-
 def build_prompt(url, input_fields, query_params):
-    fields_str = json.dumps(input_fields, ensure_ascii=False, indent=2)
-    params_str = json.dumps(query_params, ensure_ascii=False, indent=2)
-
-    prompt = f"""
-    You are a penetration testing expert specializing in web security vulnerability analysis.
-
-    You are provided with structured information about input fields and query parameters from a web page.  
-    This information includes technical hints about how the inputs are structured and which HTML attributes or names they contain.
-
-    Your tasks are:
-    1. For each input or parameter, infer how it is likely to be used in the context of the application.
-    2. Based on this, identify the most likely web vulnerabilities (such as SQL Injection, XSS, CSRF, Open Redirect, etc.) in order of likelihood.
-    3. When suggesting possible vulnerabilities, clearly explain **why** you think they are likely by referring to or using the given information.
-
-    ---
-
-    ### Analysis Guidelines
-
-    - Do **not** assume that every input is vulnerable. Only suggest vulnerabilities that are realistically likely based on the provided information (attribute names, field names, query keys, etc.).
-    - If you suspect a vulnerability, clearly state the **rationale** behind your assessment.  
-      Example: `"name='login'" is likely used for user authentication and may be directly inserted into an SQL query, indicating a high risk of SQL Injection.`
-
-    - Provide a representative **example payload** for each vulnerability type you identify.  
-      (However, do not force a fixed number like five—just include **valid and plausible** payloads.)
-
-    - Organize the results by input field or query parameter for clarity.
-
-    ---
-
-    ### Target Page Information
-
-    URL: {url}  
-
-    [Input Field Information]  
-    {fields_str}
-
-    [Query Parameters]  
-    {params_str}
-    """
-
+    user_content = {
+        "url": url,
+        "input_fields": input_fields,
+        "query_params": query_params,
+    }
+    json_str = json.dumps(user_content, ensure_ascii=False, separators=(',', ':'))
+    prompt = (
+        "<s>[INST] "
+        "Analyze the following input fields and query parameters for security vulnerabilities. "
+        "Respond only with pretty-printed JSON (with indentation and line breaks), and do not include any explanations or markdown formatting. "
+        f"{json_str} [/INST]"
+    )
     return prompt
 
-def query_local_llm(prompt: str) -> str:
-    result = subprocess.run(
-        ["ollama", "run", "llama3"],
-        input=prompt,
-        capture_output=True,
-        text=True
-    )
-    return result.stdout.strip()
+def extract_json_from_text(text):
+    """
+    텍스트에서 가장 첫 '{'와 마지막 '}' 사이만 추출
+    (LLM이 앞뒤로 텍스트를 붙여도 JSON만 파싱할 수 있도록)
+    """
+    start = text.find('{')
+    end = text.rfind('}')
+    if start != -1 and end != -1 and end > start:
+        return text[start:end+1]
+    return text
 
+def pretty_fieldwise_click_secho(parsed, color="green"):
+    """
+    딕셔너리 key-value를 보기 좋게 출력
+    여러 건(리스트)도 모두 순회하며 출력
+    """
+    if isinstance(parsed, list):
+        for idx, obj in enumerate(parsed):
+            click.secho(f"\n--- Result {idx+1} ---", fg=color)
+            for k, v in obj.items():
+                click.secho(f"{k}: {v}", fg=color)
+        click.secho("", fg=color)
+    else:
+        for k, v in parsed.items():
+            click.secho(f"{k}: {v}", fg=color)
+        click.secho("", fg=color)
+
+def query_local_llm(prompt: str) -> str:
+    """
+    Ollama LLM에 프롬프트 전달, 결과 반환
+    """
+    try:
+        result = subprocess.run(
+            ["ollama", "run", "mistral-fine"],
+            input=prompt,
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        return result.stdout.strip()
+    except Exception as e:
+        click.secho(f"[!] Ollama 실행 실패: {e}", fg="red")
+        return ""
 
 def run_llm_analysis(db_path="data/crawl_links.db"):
+    """
+    전체 분석 워크플로우
+    """
     try:
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
@@ -117,13 +115,17 @@ def run_llm_analysis(db_path="data/crawl_links.db"):
         try:
             result = query_local_llm(prompt)
             if result:
-                click.secho(result, fg="green")
+                try:
+                    pure_json = extract_json_from_text(result)
+                    parsed = json.loads(pure_json)
+                    pretty_fieldwise_click_secho(parsed, color="green")
+                except Exception as e:
+                    click.secho(f"[!] JSON 파싱 실패 또는 예상 외 포맷: {e}", fg="red")
+                    click.secho(result, fg="green")
             else:
                 raise ValueError("LLM 응답이 비어 있음")
         except Exception as e:
             click.secho(f"[!] LLM 분석 실패 또는 결과 파싱 오류: {e}", fg="red")
 
-
 if __name__ == "__main__":
     run_llm_analysis()
-    

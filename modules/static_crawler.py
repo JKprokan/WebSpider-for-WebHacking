@@ -27,7 +27,6 @@ def run_static_crawl(start_url, max_depth=1, include=None, exclude=None, mode='d
     else:
         run_static_bfs(start_url, max_depth, include, exclude, cookie)
 
-
 def run_static_dfs(start_url, max_depth, include, exclude, cookie=""):
     visited = set()
     stack = [(start_url, 0, None)]
@@ -54,6 +53,7 @@ def run_static_dfs(start_url, max_depth, include, exclude, cookie=""):
 
         try:
             res = session.get(url, timeout=5)
+            res.encoding = "utf-8"  # ✅ 다국어 대응
             res.raise_for_status()
         except Exception as e:
             print(f"[!] 요청 실패: {url} - {e}")
@@ -110,6 +110,7 @@ def run_static_bfs(start_url, max_depth, include, exclude, cookie=""):
 
         try:
             res = session.get(url, timeout=5)
+            res.encoding = "utf-8"  # ✅ 다국어 대응
             res.raise_for_status()
         except Exception as e:
             print(f"[!] 요청 실패: {url} - {e}")
