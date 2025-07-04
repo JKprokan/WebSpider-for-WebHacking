@@ -1,3 +1,5 @@
+from modules.db import create_table
+create_table()
 import click
 
 @click.command()
