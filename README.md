@@ -42,17 +42,17 @@ LLM(로컬 AI) 기반 자동 보안 분석까지 모두 지원하는 커맨드�
   
   `cd finetuning`
 
-  `wget https://huggingface.co/Jin312/WebSpider_Mistral/resolve/main/finetuning/WebSpider_Mistral.gguf`  
+  `wget https://huggingface.co/Jin312/WebSpider_Mistral/blob/main/finetuning/mistral7B_vuln_merged-q4_k_m.gguf`  
   
-  `wget https://huggingface.co/Jin312/WebSpider_Mistral/resolve/main/finetuning/Modelfile`
+  `wget https://huggingface.co/Jin312/WebSpider_Mistral/blob/main/finetuning/Modelfile`
 
 ### Ollama 모델 등록
 
-  `ollama create webspider-mistral -f Modelfile`
+  `ollama create misrtral-fine -f Modelfile`
 
 ## 사용 예시
 
-`whspider -u https://target.com --static --llm --depth 2 --csv`
+`whspider -u https://target.com --static --depth 2 --json --graph --llm`
 
 ### 주요 옵션 안내
 
