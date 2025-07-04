@@ -58,7 +58,7 @@ def query_local_llm(prompt: str) -> str:
     """
     try:
         result = subprocess.run(
-            ["ollama", "run", "mistral-fine"],
+            ["ollama", "run", "hf.co/Jin312/WebSpider_Mistral:Q4_K_M"],
             input=prompt,
             capture_output=True,
             text=True,
