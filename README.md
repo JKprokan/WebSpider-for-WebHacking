@@ -32,15 +32,18 @@ LLM(로컬 AI) 기반 자동 보안 분석까지 모두 지원하는 커맨드�
 
 - 소스 직접 설치:
   `git clone https://github.com/JKprokan/WebSpider-for-WebHacking.git`
+  
   `pip install .`
 
 ## AI 모델(gguf) 및 Modelfile 다운로드
     whspider는 AI 모델(gguf)과 Modelfile을 Hugging Face에서 받아 사용합니다.
 
-  `mkdir -p finetuning`
+  `mkdir -p finetuning`  
+  
   `cd finetuning`
 
-  `wget https://huggingface.co/Jin312/WebSpider_Mistral/resolve/main/finetuning/WebSpider_Mistral.gguf`
+  `wget https://huggingface.co/Jin312/WebSpider_Mistral/resolve/main/finetuning/WebSpider_Mistral.gguf`  
+  
   `wget https://huggingface.co/Jin312/WebSpider_Mistral/resolve/main/finetuning/Modelfile`
 
 ### Ollama 모델 등록
