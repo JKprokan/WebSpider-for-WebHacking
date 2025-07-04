@@ -1,6 +1,7 @@
 from modules.db import create_table
 create_table()
 import click
+from urllib.parse import urlparse
 
 @click.command()
 @click.option('-u', '--url', required=True, help='타겟 URL')
@@ -18,6 +19,11 @@ import click
 @click.option('--cookie', default="", help='요청에 사용할 쿠키들 (name1 = value1; name2=value2..)')
 
 def webspider(url, depth, static, dynamic, json, csv, graph, frequency, llm, include, exclude, mode, cookie):
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        click.secho("URL 형식이 잘못되었습니다. “http://” 또는 “https://” 로 시작해야 합니다.", fg="red")
+    return
+    
     click.secho(f"\n [URL] {url}", fg="cyan")
     click.secho(f" [Depth] {depth}", fg="cyan")
 
