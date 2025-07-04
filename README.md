@@ -29,6 +29,8 @@ LLM(로컬 AI) 기반 자동 보안 분석까지 모두 지원하는 커맨드�
 
   `cd WebSpider-for-WebHacking`
 
+  `pip install .`
+
 ## AI 모델(gguf) 및 Modelfile 다운로드
   `ollama pull hf.co/Jin312/WebSpider_Mistral:Q4_K_M`
 
