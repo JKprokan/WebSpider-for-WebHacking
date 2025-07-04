@@ -24,23 +24,13 @@ LLM(로컬 AI) 기반 자동 보안 분석까지 모두 지원하는 커맨드�
 
 ### 2. whspider 설치
 
-- 실행파일로 사용하는 경우:  
-  릴리즈 페이지에서 OS에 맞는 whspider 실행파일 다운로드 후 PATH 등록
-
-- pip로 설치하는 경우:
-  `pip install whspider`
-
 - 소스 직접 설치:
   `git clone https://github.com/JKprokan/WebSpider-for-WebHacking.git`
-  
-  `pip install .`
+
+  `cd WebSpider-for-WebHacking`
 
 ## AI 모델(gguf) 및 Modelfile 다운로드
   `ollama pull hf.co/Jin312/WebSpider_Mistral:Q4_K_M`
-
-### Ollama 모델 등록
-
-  `ollama create misrtral-fine -f Modelfile`
 
 ## 사용 예시
 
