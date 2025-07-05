@@ -17,7 +17,7 @@ def create_table(db_path):
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS crawl_links (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            link TEXT UNIQUE,
+            link TEXT,
             parent TEXT,
             depth INTEGER,
             host TEXT,
@@ -28,12 +28,13 @@ def create_table(db_path):
         """)
         conn.commit()
 
+
 def insert_link(db_path, link, parent, depth, host, query_params, input_fields_json):
     kst_now = datetime.now(timezone(timedelta(hours=9))).strftime("%Y-%m-%d %H:%M:%S")
     with sqlite3.connect(db_path) as conn:
         cursor = conn.cursor()
         cursor.execute("""
-            INSERT OR IGNORE INTO crawl_links 
+            INSERT INTO crawl_links
             (link, parent, depth, host, query_params, input_fields, collected_time)
             VALUES (?, ?, ?, ?, ?, ?, ?)
         """, (link, parent, depth, host, query_params, input_fields_json, kst_now))
