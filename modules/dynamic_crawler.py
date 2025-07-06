@@ -2,15 +2,17 @@ import asyncio
 from urllib.parse import urljoin, urlparse
 from bs4 import BeautifulSoup
 import json
-from collections import deque
+from collections import deque, defaultdict
 from urllib import robotparser
 
 from modules.config import TARGET_ATTRIBUTES
 from modules.parser import extract_inputs_with_form_context
 from modules.db import insert_link
 from modules.params import extract_params_from_url
-from modules.url_filter import compile_patterns, is_url_allowed
+from modules.url_filter import compile_patterns, is_url_allowed, filter_similar_urls
 from playwright.async_api import async_playwright
+
+parent_url_groups = defaultdict(list)
 
 def is_supported_scheme(url):
     parsed = urlparse(url)
@@ -58,7 +60,7 @@ def run_dynamic_crawl_entry(start_url, max_depth=1, include=None, exclude=None, 
     else:
         asyncio.run(_run_dynamic_bfs(start_url, max_depth, include_patterns, exclude_patterns, base_netloc, cookie, db_path, rp, ignore_robots))
 
-async def fetch_page(context, url, depth, parent, include_patterns, exclude_patterns, max_depth, visited, container, push, base_netloc, db_path, rp, ignore_robots):
+async def fetch_page(context, url, depth, parent, include_patterns, exclude_patterns, max_depth, visited, container, push, base_netloc, start_url, db_path, rp, ignore_robots):
     if url in visited or depth > max_depth:
         return
     visited.add(url)
@@ -84,7 +86,8 @@ async def fetch_page(context, url, depth, parent, include_patterns, exclude_patt
         query_dict = extract_params_from_url(url)
         query_params = json.dumps(query_dict, ensure_ascii=False)
 
-        insert_link(db_path, url, parent, depth, host, query_params, input_fields_json)
+        parent_key = parent if parent else start_url
+        parent_url_groups[parent_key].append((url, parent, depth, host, query_params, input_fields_json))
 
         if depth == max_depth:
             await page.close()
@@ -124,9 +127,10 @@ async def _run_dynamic_dfs(start_url, max_depth, include_patterns, exclude_patte
 
         while stack:
             url, depth, parent = stack.pop()
-            await fetch_page(context, url, depth, parent, include_patterns, exclude_patterns, max_depth, visited, stack, list.append, base_netloc, db_path, rp, ignore_robots)
+            await fetch_page(context, url, depth, parent, include_patterns, exclude_patterns, max_depth, visited, stack, list.append, base_netloc, start_url, db_path, rp, ignore_robots)
 
         await browser.close()
+        save_filtered_urls(db_path)
 
 async def _run_dynamic_bfs(start_url, max_depth, include_patterns, exclude_patterns, base_netloc, cookie, db_path, rp, ignore_robots):
     visited = set()
@@ -149,7 +153,18 @@ async def _run_dynamic_bfs(start_url, max_depth, include_patterns, exclude_patte
             tasks = []
             for _ in range(min(len(queue), 20)): # 동시성 제한
                 url, depth, parent = queue.popleft()
-                tasks.append(fetch_page(context, url, depth, parent, include_patterns, exclude_patterns, max_depth, visited, queue, deque.append, base_netloc, db_path, rp, ignore_robots))
+                tasks.append(fetch_page(context, url, depth, parent, include_patterns, exclude_patterns, max_depth, visited, queue, deque.append, base_netloc, start_url, db_path, rp, ignore_robots))
             await asyncio.gather(*tasks)
 
         await browser.close()
+        save_filtered_urls(db_path)
+
+def save_filtered_urls(db_path):
+    for parent, url_info_list in parent_url_groups.items():
+        urls = [info[0] for info in url_info_list]
+        filtered_urls = filter_similar_urls(urls, threshold=90.0, max_keep=3)
+        filtered_set = set(filtered_urls)
+
+        for url, _, depth, host, query_params, input_fields_json in url_info_list:
+            if url in filtered_set:
+                insert_link(db_path, url, parent, depth, host, query_params, input_fields_json)

@@ -2,14 +2,16 @@ import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse
 import json
-from collections import deque
+from collections import deque, defaultdict
 from urllib import robotparser
 
 from modules.config import TARGET_ATTRIBUTES
 from modules.parser import extract_inputs_with_form_context
 from modules.db import insert_link
 from modules.params import extract_params_from_url
-from modules.url_filter import compile_patterns, is_url_allowed
+from modules.url_filter import compile_patterns, is_url_allowed, filter_similar_urls
+
+parent_url_groups = defaultdict(list)
 
 def is_internal_url(url, base_netloc):
     return urlparse(url).netloc.endswith(base_netloc)
@@ -80,7 +82,8 @@ def _run_static_dfs(start_url, max_depth, include_patterns, exclude_patterns, ba
         input_fields = extract_inputs_with_form_context(res.text)
         input_fields_json = json.dumps(input_fields, ensure_ascii=False)
 
-        insert_link(db_path, url, parent, depth, host, query_params, input_fields_json)
+        parent_key = parent if parent else start_url
+        parent_url_groups[parent_key].append((url, parent, depth, host, query_params, input_fields_json))
 
         if depth == max_depth:
             continue
@@ -95,6 +98,7 @@ def _run_static_dfs(start_url, max_depth, include_patterns, exclude_patterns, ba
                 continue
 
             stack.append((next_url, depth + 1, url))
+    save_filtered_urls(db_path)
 
 def _run_static_bfs(start_url, max_depth, include_patterns, exclude_patterns, base_netloc, session, db_path, rp, ignore_robots):
     visited = set()
@@ -130,7 +134,8 @@ def _run_static_bfs(start_url, max_depth, include_patterns, exclude_patterns, ba
         input_fields = extract_inputs_with_form_context(res.text)
         input_fields_json = json.dumps(input_fields, ensure_ascii=False)
 
-        insert_link(db_path, url, parent, depth, host, query_params, input_fields_json)
+        parent_key = parent if parent else start_url
+        parent_url_groups[parent_key].append((url, parent, depth, host, query_params, input_fields_json))
 
         if depth == max_depth:
             continue
@@ -145,3 +150,15 @@ def _run_static_bfs(start_url, max_depth, include_patterns, exclude_patterns, ba
                 continue
 
             queue.append((next_url, depth + 1, url))
+
+    save_filtered_urls(db_path)
+
+def save_filtered_urls(db_path):
+    for parent, url_info_list in parent_url_groups.items():
+        urls = [info[0] for info in url_info_list]
+        filtered_urls = filter_similar_urls(urls, threshold=90.0, max_keep=3)
+        filtered_set = set(filtered_urls)
+
+        for url, parent, depth, host, query_params, input_fields_json in url_info_list:
+            if url in filtered_set:
+                insert_link(db_path, url, parent, depth, host, query_params, input_fields_json)
