@@ -16,7 +16,16 @@ def get_parent_color(idx):
 def generate_interactive_graph(db_path, url, output_html=None):
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
-    cursor.execute("SELECT link, parent, depth, input_fields FROM crawl_links")
+    cursor.execute("""
+        SELECT t1.link, t1.parent, t1.depth, t1.input_fields
+        FROM crawl_links t1
+        INNER JOIN (
+            SELECT link, MIN(collected_time) AS min_time
+            FROM crawl_links
+            GROUP BY link
+        ) t2
+        ON t1.link = t2.link AND t1.collected_time = t2.min_time
+    """)
     rows = cursor.fetchall()
     conn.close()
 
