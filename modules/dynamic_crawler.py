@@ -86,7 +86,7 @@ async def fetch_page(context, url, depth, parent, include_patterns, exclude_patt
         query_dict = extract_params_from_url(url)
         query_params = json.dumps(query_dict, ensure_ascii=False)
 
-        parent_key = parent if parent else start_url
+        parent_key = parent if parent else None
         parent_url_groups[parent_key].append((url, parent, depth, host, query_params, input_fields_json))
 
         if depth == max_depth:
