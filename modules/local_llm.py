@@ -148,9 +148,16 @@ def run_llm_analysis(db_path, url):
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT link, input_fields, query_params
-            FROM crawl_links
-            WHERE (input_fields IS NOT NULL AND input_fields != '[]') OR (query_params IS NOT NULL AND query_params != '{}')
+            SELECT t1.link, t1.input_fields, t1.query_params
+            FROM crawl_links t1
+            INNER JOIN (
+                SELECT link, MAX(collected_time) AS max_time
+                FROM crawl_links
+                GROUP BY link
+            ) t2
+            ON t1.link = t2.link AND t1.collected_time = t2.max_time
+            WHERE (t1.input_fields IS NOT NULL AND t1.input_fields != '[]') 
+               OR (t1.query_params IS NOT NULL AND t1.query_params != '{}')
         """)
         rows = cursor.fetchall()
         conn.close()
