@@ -6,7 +6,8 @@ setup(
     packages=["modules"],
     py_modules=["cli"],
     install_requires=[
-        "click", 
+        "click",
+        "rapidfuzz" 
     ],
     entry_points={
         "console_scripts": [
