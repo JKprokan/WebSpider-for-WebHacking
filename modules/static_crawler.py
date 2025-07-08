@@ -11,6 +11,8 @@ from modules.db import insert_link
 from modules.params import extract_params_from_url
 from modules.url_filter import compile_patterns, is_url_allowed, filter_similar_urls
 
+UA = "whspider/1.0"
+
 parent_url_groups = defaultdict(list)
 
 def is_internal_url(url, base_netloc):
@@ -36,7 +38,7 @@ def run_static_crawl_entry(start_url, max_depth=1, include=None, exclude=None, m
             print(f"[!] robots.txt 읽기 실패: {e}")
 
     session = requests.Session()
-    session.headers.update({"User-Agent": "Mozilla/5.0"})
+    session.headers.update({"User-Agent": UA})
     if cookie:
         for k, v in parse_cookie_string(cookie).items():
             session.cookies.set(k, v)
@@ -65,7 +67,7 @@ def _run_static_dfs(start_url, max_depth, include_patterns, exclude_patterns, ba
             continue
         visited.add(url)
 
-        if not ignore_robots and not rp.can_fetch("*", url):
+        if not ignore_robots and not rp.can_fetch(UA, url):
             print(f"[!] robots.txt 에 의해 차단: {url}")
             continue
 

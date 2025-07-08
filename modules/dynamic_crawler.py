@@ -12,6 +12,8 @@ from modules.params import extract_params_from_url
 from modules.url_filter import compile_patterns, is_url_allowed, filter_similar_urls
 from playwright.async_api import async_playwright
 
+UA = "whspider/1.0"
+
 parent_url_groups = defaultdict(list)
 
 def is_supported_scheme(url):
@@ -69,7 +71,7 @@ async def fetch_page(context, url, depth, parent, include_patterns, exclude_patt
         return
     visited.add(url)
 
-    if not ignore_robots and not rp.can_fetch("*", url):
+    if not ignore_robots and not rp.can_fetch(UA, url):
         print(f"[!] robots.txt 에 의해 차단: {url}")
         return
 
