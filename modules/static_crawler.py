@@ -44,10 +44,15 @@ def run_static_crawl_entry(start_url, max_depth=1, include=None, exclude=None, m
     include_patterns = compile_patterns(include)
     exclude_patterns = compile_patterns(exclude)
 
-    if mode == 'dfs':
-        _run_static_dfs(start_url, max_depth, include_patterns, exclude_patterns, base_netloc, session, db_path, rp, ignore_robots)
-    else:
-        _run_static_bfs(start_url, max_depth, include_patterns, exclude_patterns, base_netloc, session, db_path, rp, ignore_robots)
+    try:
+        if mode == 'dfs':
+            _run_static_dfs(start_url, max_depth, include_patterns, exclude_patterns, base_netloc, session, db_path, rp, ignore_robots)
+        else:
+            _run_static_bfs(start_url, max_depth, include_patterns, exclude_patterns, base_netloc, session, db_path, rp, ignore_robots)
+    except KeyboardInterrupt:
+        print("\n[!] 사용자에 의해 크롤링이 중지되었습니다.")
+        save_filtered_urls(db_path)
+        print("[i] 지금까지 수집한 데이터만 저장 후 종료합니다.\n")
 
 def _run_static_dfs(start_url, max_depth, include_patterns, exclude_patterns, base_netloc, session, db_path, rp, ignore_robots):
     visited = set()

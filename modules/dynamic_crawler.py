@@ -54,12 +54,16 @@ def run_dynamic_crawl_entry(start_url, max_depth=1, include=None, exclude=None, 
     
     include_patterns = compile_patterns(include)
     exclude_patterns = compile_patterns(exclude)
-
-    if mode == 'dfs':
-        asyncio.run(_run_dynamic_dfs(start_url, max_depth, include_patterns, exclude_patterns, base_netloc, cookie, db_path, rp, ignore_robots))
-    else:
-        asyncio.run(_run_dynamic_bfs(start_url, max_depth, include_patterns, exclude_patterns, base_netloc, cookie, db_path, rp, ignore_robots))
-
+    try:
+        if mode == 'dfs':
+            asyncio.run(_run_dynamic_dfs(start_url, max_depth, include_patterns, exclude_patterns, base_netloc, cookie, db_path, rp, ignore_robots))
+        else:
+            asyncio.run(_run_dynamic_bfs(start_url, max_depth, include_patterns, exclude_patterns, base_netloc, cookie, db_path, rp, ignore_robots))
+    except:
+        print("\n[!] 사용자에 의해 크롤링이 중지되었습니다.")
+        save_filtered_urls(db_path)
+        print("[i] 지금까지 수집한 데이터만 저장 후 종료합니다.\n")
+        
 async def fetch_page(context, url, depth, parent, include_patterns, exclude_patterns, max_depth, visited, container, push, base_netloc, start_url, db_path, rp, ignore_robots):
     if url in visited or depth > max_depth:
         return
