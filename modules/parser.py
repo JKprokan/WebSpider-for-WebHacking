@@ -10,6 +10,8 @@ def extract_inputs_with_form_context(html: str) -> list:
         method = form.get("method", "").upper()
         action = form.get("action", "")
         for tag in form.find_all(["input", "textarea", "select"]):
+            if tag.name == "input" and tag.get("type", "").lower() == "hidden":
+                continue
             input_info = {
                 attr: value
                 for attr, value in tag.attrs.items()
@@ -23,6 +25,8 @@ def extract_inputs_with_form_context(html: str) -> list:
 
     for tag in soup.find_all(["input", "textarea", "select"]):
         if id(tag) not in form_input_ids:
+            if tag.name == "input" and tag.get("type", "").lower() == "hidden":
+                continue
             input_info = {
                 attr: value
                 for attr, value in tag.attrs.items()
