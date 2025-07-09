@@ -56,109 +56,64 @@ def run_static_crawl_entry(start_url, max_depth=1, include=None, exclude=None, m
         save_filtered_urls(db_path)
         print("[i] 지금까지 수집한 데이터만 저장 후 종료합니다.\n")
 
+def fetch_page(url, depth, parent, include_patterns, exclude_patterns, max_depth, visited, container, push, base_netloc, session, start_url, db_path, rp, ignore_robots):
+    if url in visited or depth > max_depth:
+        return
+    visited.add(url)
+
+    if not ignore_robots and not rp.can_fetch(UA, url):
+        print(f"[!] robots.txt 에 의해 차단: {url}")
+        return
+
+    print(f"[Depth {depth}] 수집: {url}")
+
+    try:
+        res = session.get(url, timeout=5)
+        res.encoding = "utf-8"
+        res.raise_for_status()
+    except Exception as e:
+        print(f"[!] 요청 실패: {url} - {e}")
+        return
+
+    parsed_url = urlparse(url)
+    host = parsed_url.netloc
+    query_dict = extract_params_from_url(url)
+    query_params = json.dumps(query_dict, ensure_ascii=False)
+
+    input_fields = extract_inputs_with_form_context(res.text)
+    input_fields_json = json.dumps(input_fields, ensure_ascii=False)
+
+    parent_key = parent if parent else start_url
+    parent_url_groups[parent_key].append((url, parent, depth, host, query_params, input_fields_json))
+
+    if depth == max_depth:
+        return
+
+    soup = BeautifulSoup(res.text, "html.parser")
+    for tag in soup.find_all("a", href=True):
+        next_url = urljoin(url, tag["href"])
+        if not is_internal_url(next_url, base_netloc):
+            continue
+        if not is_url_allowed(next_url, include_patterns, exclude_patterns):
+            continue
+        push(container, (next_url, depth + 1, url))
+
 def _run_static_dfs(start_url, max_depth, include_patterns, exclude_patterns, base_netloc, session, db_path, rp, ignore_robots):
     visited = set()
     stack = [(start_url, 0, None)]
-
     while stack:
         url, depth, parent = stack.pop()
-
-        if url in visited or depth > max_depth:
-            continue
-        visited.add(url)
-
-        if not ignore_robots and not rp.can_fetch(UA, url):
-            print(f"[!] robots.txt 에 의해 차단: {url}")
-            continue
-
-        print(f"[Depth {depth}] 수집: {url}")
-
-        try:
-            res = session.get(url, timeout=5)
-            res.encoding = "utf-8"  # ✅ 다국어 대응
-            res.raise_for_status()
-        except Exception as e:
-            print(f"[!] 요청 실패: {url} - {e}")
-            continue
-
-        parsed_url = urlparse(url)
-        host = parsed_url.netloc
-        query_dict = extract_params_from_url(url)
-        query_params = json.dumps(query_dict, ensure_ascii=False)
-
-        input_fields = extract_inputs_with_form_context(res.text)
-        input_fields_json = json.dumps(input_fields, ensure_ascii=False)
-
-        parent_key = parent if parent else start_url
-        parent_url_groups[parent_key].append((url, parent, depth, host, query_params, input_fields_json))
-
-        if depth == max_depth:
-            continue
-
-        soup = BeautifulSoup(res.text, "html.parser")
-        for tag in soup.find_all("a", href=True):
-            next_url = urljoin(url, tag["href"])
-
-            if not is_internal_url(next_url, base_netloc):
-                continue
-            if not is_url_allowed(next_url, include_patterns, exclude_patterns):
-                continue
-
-            stack.append((next_url, depth + 1, url))
+        fetch_page(url, depth, parent, include_patterns, exclude_patterns, max_depth, visited, stack, list.append, base_netloc, session, start_url, db_path, rp, ignore_robots)
     save_filtered_urls(db_path)
 
 def _run_static_bfs(start_url, max_depth, include_patterns, exclude_patterns, base_netloc, session, db_path, rp, ignore_robots):
     visited = set()
-    queue = deque()
-    queue.append((start_url, 0, None))
-
+    queue = deque([(start_url, 0, None)])
     while queue:
         url, depth, parent = queue.popleft()
-
-        if url in visited or depth > max_depth:
-            continue
-        visited.add(url)
-
-        if not ignore_robots and not rp.can_fetch("*", url):
-            print(f"[!] robots.txt 에 의해 차단: {url}")
-            continue
-
-        print(f"[Depth {depth}] 수집: {url}")
-
-        try:
-            res = session.get(url, timeout=5)
-            res.encoding = "utf-8"  # ✅ 다국어 대응
-            res.raise_for_status()
-        except Exception as e:
-            print(f"[!] 요청 실패: {url} - {e}")
-            continue
-
-        parsed_url = urlparse(url)
-        host = parsed_url.netloc
-        query_dict = extract_params_from_url(url)
-        query_params = json.dumps(query_dict, ensure_ascii=False)
-
-        input_fields = extract_inputs_with_form_context(res.text)
-        input_fields_json = json.dumps(input_fields, ensure_ascii=False)
-
-        parent_key = parent if parent else start_url
-        parent_url_groups[parent_key].append((url, parent, depth, host, query_params, input_fields_json))
-
-        if depth == max_depth:
-            continue
-
-        soup = BeautifulSoup(res.text, "html.parser")
-        for tag in soup.find_all("a", href=True):
-            next_url = urljoin(url, tag["href"])
-
-            if not is_internal_url(next_url, base_netloc):
-                continue
-            if not is_url_allowed(next_url, include_patterns, exclude_patterns):
-                continue
-
-            queue.append((next_url, depth + 1, url))
-
+        fetch_page(url, depth, parent, include_patterns, exclude_patterns, max_depth, visited, queue, deque.append, base_netloc, session, start_url, db_path, rp, ignore_robots)
     save_filtered_urls(db_path)
+
 
 def save_filtered_urls(db_path):
     for parent, url_info_list in parent_url_groups.items():
