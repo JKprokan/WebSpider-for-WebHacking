@@ -10,7 +10,6 @@ from urllib.parse import urlparse
 @click.option('--json', is_flag=True, help='JSON 결과 추출')
 @click.option('--csv', is_flag=True, help='CSV 파일 추출')
 @click.option("--graph", is_flag=True, help="크롤링된 링크 구조를 인터랙티브 그래프로 시각화")
-@click.option('--frequency', is_flag=True, help='빈도 분석 리포트 생성')
 @click.option('--llm', is_flag=True, help='LLM 연계 보안 분석 실행')
 @click.option('--include', default="", help='포함할 키워드 (쉼표로 구분)')
 @click.option('--exclude', default="", help='제외할 키워드 (쉼표로 구분)')
@@ -18,7 +17,7 @@ from urllib.parse import urlparse
 @click.option('--cookie', default="", help='요청에 사용할 쿠키들 (name1 = value1; name2=value2..)')
 @click.option('--ignore-robots', is_flag=True, help='robots.txt 규칙 무시')
 
-def webspider(url, depth, static, dynamic, json, csv, graph, frequency, llm, include, exclude, mode, cookie, ignore_robots):
+def webspider(url, depth, static, dynamic, json, csv, graph, llm, include, exclude, mode, cookie, ignore_robots):
     parsed = urlparse(url)
     if parsed.scheme not in ("http", "https"):
         click.secho("URL 형식이 잘못되었습니다. “http://” 또는 “https://” 로 시작해야 합니다.", fg="red")
@@ -61,11 +60,6 @@ def webspider(url, depth, static, dynamic, json, csv, graph, frequency, llm, inc
         click.secho("[+] 인터랙티브 그래프 생성", fg="green")
         generate_interactive_graph(db_path, url)
 
-    if frequency:
-        from modules.frequency import generate_frequency_report
-        click.secho("[+] 빈도 분석 리포트 생성", fg="green")
-        generate_frequency_report(db_path)
-        
     if llm:
         from modules.local_llm import run_llm_analysis
         click.secho("[+] LLM 연계 취약점 분석 실행", fg="green")
