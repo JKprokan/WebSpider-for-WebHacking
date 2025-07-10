@@ -120,28 +120,53 @@ def generate_interactive_graph(db_path, url, output_html=None):
     net.write_html(output_html)
     print(f"시각화 완료: {output_html}")
 
-    inject_info_panel(output_html, nodes_with_info)
+    inject_info_panel(output_html, nodes_with_info, parent_colors)
 
-def inject_info_panel(html_path, nodes_with_info):
+def inject_info_panel(html_path, nodes_with_info, parent_colors):
     with open(html_path, "r", encoding="utf-8") as f:
         html = f.read()
 
-    # info 패널 추가 (우측 상단)
+    # 📦 동적 범례 HTML 구성
+    legend_entries = """
+    <div style="margin-bottom:4px;">
+      <span style="display:inline-block;width:16px;height:16px;background:#d62728;margin-right:6px;"></span>루트 노드 (Depth 0)
+    </div>
+    <div style="margin-bottom:4px;">
+      <span style="display:inline-block;width:16px;height:16px;background:#bdc3c7;margin-right:6px;"></span>입력 필드 없음
+    </div>
+    """
+
+    # 부모 그룹 색상 추가
+    for parent, color in parent_colors.items():
+        short = parent if len(parent) < 40 else parent[:35] + "..."
+        entry = f"""
+        <div style="margin-bottom:4px;">
+          <span style="display:inline-block;width:16px;height:16px;background:{color};margin-right:6px;"></span>{short}
+        </div>
+        """
+        legend_entries += entry
+
+    legend_div = f"""
+    <div id="legend-box" style="position:fixed; top:40px; left:40px; width:300px; max-height:500px; overflow:auto;
+     background:#fff; border:1px solid #ccc; padding:10px; font-size:14px; z-index:1000; box-shadow:2px 2px 6px rgba(0,0,0,0.1);">
+      {legend_entries}
+    </div>
+    """
+    html = html.replace('<body>', f'<body>\n{legend_div}', 1)
+
+    # 기존 info panel 삽입
     info_div = """
     <div id="info-panel" style="position:fixed; top:40px; right:40px; width:420px; height:460px; border:1px solid #aaa; background:#fcfcfc; overflow:auto; z-index:1000; padding:14px; font-family:monospace; font-size:15px; display:none;"></div>
     """
-
     html = html.replace('<body>', f'<body>\n{info_div}', 1)
 
-    # 각 노드 id: info_html 매핑 JS 변수로 변환
+    # node info + JS 삽입
     node_infos = {node['id']: node['info_html'] for node in nodes_with_info}
     info_js = "var nodeInfos = " + json.dumps(node_infos, ensure_ascii=False) + ";\n"
 
-    # 클릭 이벤트 JS 삽입
     js_code = f"""
     <script>
     {info_js}
-    // pyvis가 network라는 변수로 vis 네트워크 할당
     network.on("click", function(params) {{
       if (params.nodes.length === 1) {{
         var nodeId = params.nodes[0];
@@ -150,13 +175,16 @@ def inject_info_panel(html_path, nodes_with_info):
         infoDiv.style.display = "block";
       }}
     }});
-    // 배경 클릭시 info 닫기
     network.on("deselectNode", function(params) {{
       var infoDiv = document.getElementById("info-panel");
       infoDiv.style.display = "none";
     }});
     </script>
     """
+    html = html.replace("</body>", js_code + "\n</body>")
+
+    with open(html_path, "w", encoding="utf-8") as f:
+        f.write(html)
 
     html = html.replace("</body>", js_code + "\n</body>")
 
