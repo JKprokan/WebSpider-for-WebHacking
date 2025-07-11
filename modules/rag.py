@@ -141,6 +141,42 @@ class RAGPipeline:
                 current_length += len(text)
         
         return "\n\n".join(context_parts)
+    
+    def get_context_with_sources(self, query, max_context_length=2000):
+        """쿼리에 대한 출처 정보가 포함된 컨텍스트 생성"""
+        results = self.search(query)
+        
+        if not results:
+            return "", []
+        
+        context_parts = []
+        sources = []
+        current_length = 0
+        
+        for i, result in enumerate(results):
+            text = result["text"]
+            score = result["score"]
+            idx = result["index"]
+            
+            if isinstance(text, str):
+                if current_length + len(text) > max_context_length:
+                    break
+                
+                # 출처 정보 추가
+                source_info = f"[Source {i+1}] (Relevance: {score:.3f}, Doc ID: {idx})"
+                context_with_source = f"{source_info}\n{text}"
+                
+                context_parts.append(context_with_source)
+                sources.append({
+                    "source_id": i+1,
+                    "doc_id": idx,
+                    "relevance_score": score,
+                    "text_preview": text[:100] + "..." if len(text) > 100 else text
+                })
+                current_length += len(context_with_source)
+        
+        full_context = "\n\n".join(context_parts)
+        return full_context, sources
 
 def create_default_config():
     """기본 설정 파일 생성"""
