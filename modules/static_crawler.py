@@ -10,6 +10,7 @@ from modules.parser import extract_inputs_with_form_context
 from modules.db import insert_link
 from modules.params import extract_params_from_url
 from modules.url_filter import compile_patterns, is_url_allowed, filter_similar_urls
+from urllib.parse import urljoin, urldefrag
 
 UA = "whspider/1.0"
 
@@ -91,7 +92,10 @@ def fetch_page(url, depth, parent, include_patterns, exclude_patterns, max_depth
 
     soup = BeautifulSoup(res.text, "html.parser")
     for tag in soup.find_all("a", href=True):
-        next_url = urljoin(url, tag["href"])
+        raw = tag["href"]
+        abs_url = urljoin(url, raw)
+        next_url, _ = urldefrag(abs_url)
+
         if not is_internal_url(next_url, base_netloc):
             continue
         if not is_url_allowed(next_url, include_patterns, exclude_patterns):
