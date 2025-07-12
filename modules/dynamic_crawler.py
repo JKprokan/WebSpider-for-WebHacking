@@ -79,8 +79,8 @@ async def fetch_page(context, url, depth, parent, include_patterns, exclude_patt
 
     try:
         page = await context.new_page()
-        await page.goto(url, timeout=7000, wait_until="domcontentloaded")
-        await page.wait_for_load_state("domcontentloaded")
+        await page.goto(url, timeout=7000, wait_until="networkidle")
+        await page.wait_for_load_state("networkidle")
         content = await page.content()
         soup = BeautifulSoup(content, "html.parser") 
 
