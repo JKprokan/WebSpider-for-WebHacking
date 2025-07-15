@@ -66,8 +66,6 @@ def fetch_page(url, depth, parent, include_patterns, exclude_patterns, max_depth
         print(f"[!] robots.txt 에 의해 차단: {url}")
         return
 
-    print(f"[Depth {depth}] 수집: {url}")
-
     try:
         res = session.get(url, timeout=5)
         res.encoding = "utf-8"
@@ -87,6 +85,8 @@ def fetch_page(url, depth, parent, include_patterns, exclude_patterns, max_depth
     parent_key = parent if parent else start_url
     parent_url_groups[parent_key].append((url, parent, depth, host, query_params, input_fields_json))
 
+    print(f"[Depth {depth}] 수집: {url}") # 수집 시작할때가 아닌 수집이 된 후에 로그가 뜨도록 위치 수정
+    
     if depth == max_depth:
         return
 
