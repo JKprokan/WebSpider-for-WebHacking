@@ -1,5 +1,6 @@
 import sqlite3
 import json
+import re
 import click
 import subprocess
 import os
@@ -118,14 +119,73 @@ def build_prompt(url, input_fields, query_params):
     )
     return prompt
 
+def json_issues(text: str) -> str:
+    def remove_trailing_hash(text: str) -> str:
+        pattern = r'(".*?"\s*:\s*")([^"\n\r]*?)\s*#+.*?(?=[,}\]])'
+        return re.sub(pattern, lambda m: f'{m.group(1)}{m.group(2)}"', text, flags=re.DOTALL)
+    
+    def indicator_string(text):
+        return re.sub(r'(".*?"\s*:\s*")([^"]*?)\'(?=\s*[,}])', r'\1\2"', text)
+    
+    def Expecting_commas(text):
+        text = re.sub(r'(".*?")\s*(")', r'\1,\2', text)
+        text = re.sub(r'(\d+)\s*(")', r'\1,\2', text)
+        text = re.sub(r'\b(true|false|null)\s*(")', r'\1,\2', text, flags=re.IGNORECASE)
+        return text
+
+    def Expecting_colons(text):
+        text = re.sub(r'(".*?")\s+(".*?")', r'\1: \2', text)
+        text = re.sub(r'(".*?")\s+(\d+)', r'\1: \2', text)
+        text = re.sub(r'(".*?")\s+(true|false|null)', r'\1: \2', text, flags=re.IGNORECASE)
+        return text
+
+    def unterminated_strings(text):
+        pattern = r'(":\s*")([^"]*?)(?=[\n\r#}]|,\s*")'
+        def replacer(match):
+            key_part = match.group(1)
+            val_part = match.group(2).split("#")[0].strip()
+            val_part = val_part.replace('\n', '\\n').replace('\r', '\\r').replace('\t', '\\t')
+            return f'{key_part}{val_part}"'
+        return re.sub(pattern, replacer, text, flags=re.DOTALL)
+    
+    def Invalid_control_character(text):
+        def escape_in_string(match):
+            content = match.group(1)
+            escaped = content.replace('\n', '\\n').replace('\r', '\\r').replace('\t', '\\t')
+            return f'"{escaped}'
+        return re.sub(r'"([^"]*?)(?=[\n\r\t])', escape_in_string, text)
+    
+    text = remove_trailing_hash(text)
+    text = indicator_string(text)
+    text = Invalid_control_character(text)
+    text = Expecting_commas(text)
+    text = Expecting_colons(text)
+    text = unterminated_strings(text)
+    return text
+
 def extract_json_from_text(text: str) -> str:
     """
     텍스트에서 JSON 객체 또는 배열을 추출합니다. LLM의 일반적인 형식 오류를 수정합니다.
     """
     # LLM이 `[{}],[{}]` 와 같이 잘못된 형식을 생성하는 경우를 대비해 정리
     # 여러 줄에 걸쳐 있을 수 있는 패턴도 처리
-    cleaned_text = text.replace("]\n,[", ",").replace("], [", ",").replace("],[", ",")
+    cleaned_text = text.strip().replace("]\n,[", ",").replace("], [", ",").replace("],[", ",")
 
+    array_matches = re.findall(r'\[\s*{.*?}\s*\]', cleaned_text, re.DOTALL)
+    if array_matches:
+        all_objs = []
+        for arr_str in array_matches:
+            try:
+                parsed = json.loads(arr_str)
+                if isinstance(parsed, list):
+                    all_objs.extend(parsed)
+                elif isinstance(parsed, dict):
+                    all_objs.append(parsed)
+            except json.JSONDecodeError:
+                continue  # 잘못된 JSON 조각은 무시
+        if all_objs:
+            return json.dumps(all_objs, indent=2, ensure_ascii=False)
+        
     # 1. JSON 배열 `[...]` 먼저 시도
     start_arr = cleaned_text.find('[')
     end_arr = cleaned_text.rfind(']')
