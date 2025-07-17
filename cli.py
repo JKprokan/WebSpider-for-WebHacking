@@ -1,6 +1,6 @@
-from modules.db import create_table, get_db_path
 import click
 from urllib.parse import urlparse
+from modules.db import create_table, get_db_path # Assuming these are correctly imported
 
 @click.command()
 @click.option('-u', '--url', required=True, help='타겟 URL')
@@ -16,19 +16,20 @@ from urllib.parse import urlparse
 @click.option('--mode', default='dfs', type=click.Choice(['dfs', 'bfs']), help='탐색 방식 (dfs 또는 bfs)')
 @click.option('--cookie', default="", help='요청에 사용할 쿠키들 (name1 = value1; name2=value2..)')
 @click.option('--ignore-robots', is_flag=True, help='robots.txt 규칙 무시')
-
 def webspider(url, depth, static, dynamic, json, csv, graph, llm, include, exclude, mode, cookie, ignore_robots):
     parsed = urlparse(url)
     if parsed.scheme not in ("http", "https"):
         click.secho("URL 형식이 잘못되었습니다. “http://” 또는 “https://” 로 시작해야 합니다.", fg="red")
         return
-    
-    # DB 파일 경로 설정
+
     db_path = get_db_path(url)
     create_table(db_path)
 
     click.secho(f"\n [URL] {url}", fg="cyan")
     click.secho(f" [Depth] {depth}", fg="cyan")
+
+    from modules.local_llm import get_last_id
+    start_id = get_last_id(db_path) or 0 # 크롤링 전 DB의 마지막 ID
 
     # --static 또는 --dynamic 옵션이 없으면 --static을 기본으로 설정
     if not static and not dynamic:
@@ -61,9 +62,14 @@ def webspider(url, depth, static, dynamic, json, csv, graph, llm, include, exclu
         generate_interactive_graph(db_path, url)
 
     if llm:
-        from modules.local_llm import run_llm_analysis
+        # LLM 분석을 위한 end_id를 크롤링 완료 후에 설정
+        end_id = get_last_id(db_path) or 0 # 크롤링 후 DB의 마지막 ID
         click.secho("[+] LLM 연계 취약점 분석 실행", fg="green")
-        run_llm_analysis(db_path, url)
-        
+        if end_id > start_id:
+            from modules.local_llm import run_llm_analysis
+            run_llm_analysis(db_path, start_id, end_id)
+        else:
+            click.secho("[!] 새로운 크롤링 데이터가 없어 LLM 분석을 건너뜁니다.", fg="yellow")
+
 if __name__ == '__main__':
     webspider()
