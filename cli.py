@@ -1,6 +1,6 @@
 import click
 from urllib.parse import urlparse
-from modules.db import create_table, get_db_path # Assuming these are correctly imported
+from modules.db import create_table, get_db_path, cleanup_by_age # Assuming these are correctly imported
 
 @click.command()
 @click.option('-u', '--url', required=True, help='타겟 URL')
@@ -16,6 +16,7 @@ from modules.db import create_table, get_db_path # Assuming these are correctly 
 @click.option('--mode', default='dfs', type=click.Choice(['dfs', 'bfs']), help='탐색 방식 (dfs 또는 bfs)')
 @click.option('--cookie', default="", help='요청에 사용할 쿠키들 (name1 = value1; name2=value2..)')
 @click.option('--ignore-robots', is_flag=True, help='robots.txt 규칙 무시')
+
 def webspider(url, depth, static, dynamic, json, csv, graph, llm, include, exclude, mode, cookie, ignore_robots):
     parsed = urlparse(url)
     if parsed.scheme not in ("http", "https"):
@@ -24,6 +25,10 @@ def webspider(url, depth, static, dynamic, json, csv, graph, llm, include, exclu
 
     db_path = get_db_path(url)
     create_table(db_path)
+
+    deleted = cleanup_by_age(db_path, days=14)
+    if deleted:
+        click.secho(f"[!] 오래된 레코드(14일 이전) 중 URL별 최신만 남기고 {deleted}건 삭제 완료", fg="yellow")
 
     click.secho(f"\n [URL] {url}", fg="cyan")
     click.secho(f" [Depth] {depth}", fg="cyan")
