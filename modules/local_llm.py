@@ -120,47 +120,61 @@ def build_prompt(url, input_fields, query_params):
     return prompt
 
 def json_issues(text: str) -> str:
-    def remove_trailing_hash(text: str) -> str:
-        pattern = r'(".*?"\s*:\s*")([^"\n\r]*?)\s*#+.*?(?=[,}\]])'
-        return re.sub(pattern, lambda m: f'{m.group(1)}{m.group(2)}"', text, flags=re.DOTALL)
-    
-    def indicator_string(text):
-        return re.sub(r'(".*?"\s*:\s*")([^"]*?)\'(?=\s*[,}])', r'\1\2"', text)
-    
-    def Expecting_commas(text):
-        text = re.sub(r'(".*?")\s*(")', r'\1,\2', text)
-        text = re.sub(r'(\d+)\s*(")', r'\1,\2', text)
-        text = re.sub(r'\b(true|false|null)\s*(")', r'\1,\2', text, flags=re.IGNORECASE)
-        return text
+    text = text.strip()
+    if text.startswith('```json'):
+        text = text[7:]
+    if text.endswith('```'):
+        text = text[:-3]
+    text = text.strip()
 
-    def Expecting_colons(text):
-        text = re.sub(r'(".*?")\s+(".*?")', r'\1: \2', text)
-        text = re.sub(r'(".*?")\s+(\d+)', r'\1: \2', text)
-        text = re.sub(r'(".*?")\s+(true|false|null)', r'\1: \2', text, flags=re.IGNORECASE)
-        return text
+    def clean_json_string_content(content):
+        content = re.sub(r'#.*?(?=[}\]]|$)', '', content, flags=re.DOTALL)
+        control_char_pattern = re.compile(r'[\x00-\x07\x0b\x0e-\x1f]')
+        content = control_char_pattern.sub('', content)
 
-    def unterminated_strings(text):
-        pattern = r'(":\s*")([^"]*?)(?=[\n\r#}]|,\s*")'
-        def replacer(match):
-            key_part = match.group(1)
-            val_part = match.group(2).split("#")[0].strip()
-            val_part = val_part.replace('\n', '\\n').replace('\r', '\\r').replace('\t', '\\t')
-            return f'{key_part}{val_part}"'
-        return re.sub(pattern, replacer, text, flags=re.DOTALL)
+        content = content.replace('\\n', 'TEMP_NEWLINE_PLACEHOLDER') 
+        content = content.replace('\\r', 'TEMP_CARRIAGE_RETURN_PLACEHOLDER')
+        content = content.replace('\\t', 'TEMP_TAB_PLACEHOLDER')
+        
+        content = content.replace('\n', '\\n')
+        content = content.replace('\r', '\\r')
+        content = content.replace('\t', '\\t')
+
+        content = content.replace('TEMP_NEWLINE_PLACEHOLDER', '\\n')
+        content = content.replace('TEMP_CARRIAGE_RETURN_PLACEHOLDER', '\\r')
+        content = content.replace('TEMP_TAB_PLACEHOLDER', '\\t')
+
+        content = re.sub(r'(?<!\\)\\(?!["\\/bfnrtu])', r'\\\\', content)
+        content = re.sub(r'(?<!\\)"', r'\"', content)
+        
+        return content
+
+    def replace_value(match):
+        key_part = match.group(1) 
+        raw_value = match.group(2) 
+        raw_value = re.sub(r'(".*?)"([a-zA-Z_]\w*":)', r'\1",\2', raw_value)
+        cleaned_value = clean_json_string_content(raw_value)
+        return f'{key_part}{cleaned_value}"' 
+    text = re.sub(r'("[^"]*?"\s*:\s*)("((?:\\.|[^"\\])*?)(?<!\\)")', replace_value, text, flags=re.DOTALL)
+
+    def fix_unterminated_strings_fallback(match):
+        key_part = match.group(1)
+        val_part = match.group(2).strip() 
+        val_part = val_part.replace('\n', '\\n').replace('\r', '\\r').replace('\t', '\\t')
+        return f'{key_part}{val_part}"' 
     
-    def Invalid_control_character(text):
-        def escape_in_string(match):
-            content = match.group(1)
-            escaped = content.replace('\n', '\\n').replace('\r', '\\r').replace('\t', '\\t')
-            return f'"{escaped}'
-        return re.sub(r'"([^"]*?)(?=[\n\r\t])', escape_in_string, text)
-    
-    text = remove_trailing_hash(text)
-    text = indicator_string(text)
-    text = Invalid_control_character(text)
-    text = Expecting_commas(text)
-    text = Expecting_colons(text)
-    text = unterminated_strings(text)
+    text = re.sub(r'(":\s*")([^"]*?)(?=[\n\r\}]|,\s*"|\s*\}|$)', fix_unterminated_strings_fallback, text, flags=re.DOTALL)
+    text = re.sub(r'(".*?"\s*:\s*)(\'[^\']*\')', lambda m: f'{m.group(1)}"{m.group(2)[1:-1]}"', text)
+    text = re.sub(r'(".*?")\s+(".*?")', r'\1: \2', text)
+    text = re.sub(r'(".*?")\s+(\d+)', r'\1: \2', text)
+    text = re.sub(r'(".*?")\s+(true|false|null)', r'\1: \2', text, flags=re.IGNORECASE)
+
+    text = re.sub(r'(".*?")\s*(")', r'\1,\2', text)
+    text = re.sub(r'(\d+)\s*(")', r'\1,\2', text)
+    text = re.sub(r'\b(true|false|null)\s*(")', r'\1,\2', text, flags=re.IGNORECASE)
+    text = re.sub(r'\}\s*\{', '},{', text)
+    text = re.sub(r'\]\s*\[', '],[', text)
+
     return text
 
 def extract_json_from_text(text: str) -> str:
