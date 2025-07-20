@@ -8,6 +8,8 @@ from sentence_transformers import SentenceTransformer
 from pathlib import Path
 import click
 
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
 class RAGPipeline:
     def __init__(self, config_path=None):
         self.config = self._load_config(config_path)
