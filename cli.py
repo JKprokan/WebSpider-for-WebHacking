@@ -14,7 +14,7 @@ from modules.db import create_table, get_db_path, cleanup_by_age # Assuming thes
 @click.option('--include', default="", help='포함할 키워드 (쉼표로 구분)')
 @click.option('--exclude', default="", help='제외할 키워드 (쉼표로 구분)')
 @click.option('--mode', default='dfs', type=click.Choice(['dfs', 'bfs']), help='탐색 방식 (dfs 또는 bfs)')
-@click.option('--cookie', default="", help='요청에 사용할 쿠키들 (name1 = value1; name2=value2..)')
+@click.option('--cookie', default="", help='요청에 사용할 쿠키들 "name1 = value1; name2=value2.."')
 @click.option('--ignore-robots', is_flag=True, help='robots.txt 규칙 무시')
 
 def webspider(url, depth, static, dynamic, json, csv, graph, llm, include, exclude, mode, cookie, ignore_robots):
