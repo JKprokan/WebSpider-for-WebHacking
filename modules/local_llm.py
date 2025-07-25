@@ -536,29 +536,27 @@ def query_local_llm(prompt: str) -> str:
     except Exception as e:
         click.secho(f"[!] Ollama 실행 실패: {e}", fg="red")
         return ""
+    
+def get_last_id(db_path):
+    with sqlite3.connect(db_path) as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT MAX(id) FROM crawl_links")
+        row = cur.fetchone()
+        return row[0] if row[0] else 0
 
-def run_llm_analysis(db_path, url, use_rag=True):
-    """
-    전체 분석 워크플로우 (DB 컨텍스트 매니저 적용)
-    """
+def run_llm_analysis(db_path, start_id, end_id, use_rag=False):
     try:
-        # === 3. DB 컨텍스트 매니저 적용 ===
-        with sqlite3.connect(db_path) as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                SELECT t1.link, t1.input_fields, t1.query_params
-                FROM crawl_links t1
-                INNER JOIN (
-                    SELECT link, MAX(collected_time) AS max_time
-                    FROM crawl_links
-                    GROUP BY link
-                ) t2
-                ON t1.link = t2.link AND t1.collected_time = t2.max_time
-                WHERE (t1.input_fields IS NOT NULL AND t1.input_fields != '[]') 
-                   OR (t1.query_params IS NOT NULL AND t1.query_params != '{}')
-            """)
-            rows = cursor.fetchall()
-            # 컨텍스트 매니저로 자동 close
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT link, input_fields, query_params
+            FROM crawl_links
+            WHERE id > ? AND id <= ?
+            AND ((input_fields IS NOT NULL AND input_fields != '[]')
+                OR (query_params IS NOT NULL AND query_params != '{}'))
+        """, (start_id, end_id))
+        rows = cursor.fetchall()
+        conn.close()
     except Exception as e:
         click.secho(f"[!] DB 연결 실패: {e}", fg="red")
         return
@@ -665,5 +663,3 @@ def run_llm_analysis(db_path, url, use_rag=True):
 
 if __name__ == "__main__":
     run_llm_analysis()
-
-

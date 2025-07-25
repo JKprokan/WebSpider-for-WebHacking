@@ -10,6 +10,7 @@ import click
 from concurrent.futures import ThreadPoolExecutor
 import threading
 
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
 # 전역 쿼리 캐시
 _query_cache = {}
 _cache_lock = threading.Lock()
