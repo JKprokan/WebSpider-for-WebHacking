@@ -1,0 +1,2 @@
+data/kb.index filter=lfs diff=lfs merge=lfs -text
+data/kb_chunks.pkl filter=lfs diff=lfs merge=lfs -text
