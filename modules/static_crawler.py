@@ -91,7 +91,9 @@ def fetch_page(url, depth, parent, include_patterns, exclude_patterns, max_depth
 
     soup = BeautifulSoup(res.text, "html.parser")
     for tag in soup.find_all("a", href=True):
-        raw = tag["href"]
+        raw = tag["href"].strip()
+        if raw.startswith("#"):
+            continue
         abs_url = urljoin(url, raw)
         next_url, _ = urldefrag(abs_url)
         if not is_internal_url(next_url, base_netloc):

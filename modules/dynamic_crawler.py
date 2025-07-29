@@ -100,7 +100,9 @@ async def fetch_page(context, url, depth, parent, include_patterns, exclude_patt
             return
 
         for tag in soup.find_all("a", href=True):
-            raw = tag["href"]
+            raw = tag["href"].strip()
+            if raw.startswith("#"):
+                continue
             abs_url = urljoin(url, raw)
             next_url, _ = urldefrag(abs_url)
             if next_url.startswith("javascript:") or not is_supported_scheme(next_url):
