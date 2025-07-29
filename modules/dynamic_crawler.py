@@ -1,5 +1,5 @@
 import asyncio
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urljoin, urlparse, urldefrag
 from bs4 import BeautifulSoup
 import json
 from collections import deque, defaultdict
@@ -100,7 +100,9 @@ async def fetch_page(context, url, depth, parent, include_patterns, exclude_patt
             return
 
         for tag in soup.find_all("a", href=True):
-            next_url = urljoin(url, tag["href"])
+            raw = tag["href"]
+            abs_url = urljoin(url, raw)
+            next_url, _ = urldefrag(abs_url)
             if next_url.startswith("javascript:") or not is_supported_scheme(next_url):
                 continue
             if not is_internal_url(next_url, base_netloc):

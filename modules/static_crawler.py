@@ -1,6 +1,6 @@
 import requests
 from bs4 import BeautifulSoup
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urljoin, urlparse, urldefrag
 import json
 from collections import deque, defaultdict
 from urllib import robotparser
@@ -91,7 +91,9 @@ def fetch_page(url, depth, parent, include_patterns, exclude_patterns, max_depth
 
     soup = BeautifulSoup(res.text, "html.parser")
     for tag in soup.find_all("a", href=True):
-        next_url = urljoin(url, tag["href"])
+        raw = tag["href"]
+        abs_url = urljoin(url, raw)
+        next_url, _ = urldefrag(abs_url)
         if not is_internal_url(next_url, base_netloc):
             continue
         if not is_url_allowed(next_url, include_patterns, exclude_patterns):
