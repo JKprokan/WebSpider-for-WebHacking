@@ -1,6 +1,6 @@
 import requests
 from bs4 import BeautifulSoup
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urljoin, urlparse, urldefrag
 import json
 from collections import deque, defaultdict
 from urllib import robotparser
@@ -102,10 +102,8 @@ def fetch_page(url, depth, parent, include_patterns, exclude_patterns, max_depth
         raw = tag["href"].strip()
         if raw.startswith("#"):
             continue
-        
         abs_url = urljoin(url, raw)
         next_url, _ = urldefrag(abs_url)
-
         if not is_internal_url(next_url, base_netloc):
             continue
         if not is_url_allowed(next_url, include_patterns, exclude_patterns):

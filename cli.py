@@ -19,6 +19,15 @@ from modules.db import create_table, get_db_path, cleanup_by_age
 @click.option('--ignore-robots', is_flag=True, help='robots.txt 규칙 무시')
 
 def webspider(url, depth, static, dynamic, json, csv, graph, llm, deep, include, exclude, mode, cookie, ignore_robots):
+    logo = r'''
+     _       ____  _______ ____  ________  __________ 
+    | |     / / / / / ___// __ \/  _/ __ \/ ____/ __ \
+    | | /| / / /_/ /\__ \/ /_/ // // / / / __/ / /_/ /
+    | |/ |/ / __  /___/ / ____// // /_/ / /___/ _, _/ 
+    |__/|__/_/ /_//____/_/   /___/_____/_____/_/ |_|  
+    '''
+    click.secho(logo, fg='cyan')
+    
     # URL 유효성 검사
     parsed = urlparse(url)
     if parsed.scheme not in ("http", "https"):

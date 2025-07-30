@@ -1,5 +1,5 @@
 import asyncio
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urljoin, urlparse, urldefrag
 from bs4 import BeautifulSoup
 import json
 from collections import deque, defaultdict
@@ -84,7 +84,6 @@ async def fetch_page(context, url, depth, parent, include_patterns, exclude_patt
     if not ignore_robots and not rp.can_fetch(UA, url):
         print(f"[!] robots.txt 에 의해 차단: {url}")
         return
-
 
     try:
         page = await context.new_page()
