@@ -104,6 +104,7 @@ def fetch_page(url, depth, parent, include_patterns, exclude_patterns, max_depth
             continue
         abs_url = urljoin(url, raw)
         next_url, _ = urldefrag(abs_url)
+        next_url = next_url.rstrip('/')
         if not is_internal_url(next_url, base_netloc):
             continue
         if not is_url_allowed(next_url, include_patterns, exclude_patterns):

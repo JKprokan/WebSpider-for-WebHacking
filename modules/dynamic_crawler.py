@@ -115,6 +115,7 @@ async def fetch_page(context, url, depth, parent, include_patterns, exclude_patt
             
             abs_url = urljoin(url, raw)
             next_url, _ = urldefrag(abs_url)
+            next_url = next_url.rstrip('/')
             
             if next_url.startswith("javascript:") or not is_supported_scheme(next_url):
                 continue
