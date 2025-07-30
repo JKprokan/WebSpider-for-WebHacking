@@ -10,6 +10,7 @@ from modules.parser import extract_inputs_with_form_context
 from modules.db import insert_link
 from modules.params import extract_params_from_url
 from modules.url_filter import compile_patterns, is_url_allowed, filter_similar_urls
+from modules.utils import DotsSpinner
 
 UA = "whspider/1.0"
 
@@ -46,6 +47,9 @@ def run_static_crawl_entry(start_url, max_depth=1, include=None, exclude=None, m
     include_patterns = compile_patterns(include)
     exclude_patterns = compile_patterns(exclude)
 
+    spinner = DotsSpinner("크롤링 중")
+    spinner.start()
+
     try:
         if mode == 'dfs':
             _run_static_dfs(start_url, max_depth, include_patterns, exclude_patterns, base_netloc, session, db_path, rp, ignore_robots)
@@ -56,6 +60,10 @@ def run_static_crawl_entry(start_url, max_depth=1, include=None, exclude=None, m
         save_filtered_urls(db_path)
         print("[i] 지금까지 수집한 데이터만 저장 후 종료합니다.\n")
 
+    finally:
+        spinner.stop()
+        print()
+
 def fetch_page(url, depth, parent, include_patterns, exclude_patterns, max_depth, visited, container, push, base_netloc, session, start_url, db_path, rp, ignore_robots):
     if url in visited or depth > max_depth:
         return
@@ -64,8 +72,6 @@ def fetch_page(url, depth, parent, include_patterns, exclude_patterns, max_depth
     if not ignore_robots and not rp.can_fetch(UA, url):
         print(f"[!] robots.txt 에 의해 차단: {url}")
         return
-
-    print(f"[Depth {depth}] 수집: {url}")
 
     try:
         res = session.get(url, timeout=5)
@@ -120,6 +126,9 @@ def _run_static_bfs(start_url, max_depth, include_patterns, exclude_patterns, ba
 
 
 def save_filtered_urls(db_path):
+
+    final_urls = []
+
     for parent, url_info_list in parent_url_groups.items():
         urls = [info[0] for info in url_info_list]
         filtered_urls = filter_similar_urls(urls, threshold=90.0, max_keep=3)
@@ -128,3 +137,7 @@ def save_filtered_urls(db_path):
         for url, parent, depth, host, query_params, input_fields_json in url_info_list:
             if url in filtered_set:
                 insert_link(db_path, url, parent, depth, host, query_params, input_fields_json)
+                final_urls.append((depth, url))
+    
+    for depth, url in final_urls:
+        print(f"[Depth {depth}] {url}")
