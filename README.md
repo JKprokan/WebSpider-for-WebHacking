@@ -39,14 +39,14 @@ pip install .
 
 `whspider -u "http://localhost/index.php" --static --depth 5 --cookie "PHPSESSID=your cookie"--graph --ignore-robots `
 
-<img width="796" height="565" alt="스크린샷 2025-07-18 오후 3 14 30" src="https://github.com/user-attachments/assets/4c1e1877-642f-4a0e-89f5-e77dd86f6da5" />
+<img width="796" height="565" alt="스크린샷 2025-07-18 오후 3 14 30" src="https://github.com/user-attachments/assets/4c1e1877-642f-4a0e-89f5-e77dd86f6da5" />
 
 ### Graph
-<img width="1223" height="734" alt="스크린샷 2025-07-18 오후 3 16 51" src="https://github.com/user-attachments/assets/ab252071-635e-44f6-94da-5a0a01066ddc" />
+<img width="1223" height="734" alt="스크린샷 2025-07-18 오후 3 16 51" src="https://github.com/user-attachments/assets/ab252071-635e-44f6-94da-5a0a01066ddc" />
 
 ### LLM
-<img width="799" height="433" alt="스크린샷 2025-07-18 오후 3 23 12" src="https://github.com/user-attachments/assets/0c81a5d5-ee88-4c35-a98f-0366326c6874" />
-<img width="789" height="433" alt="스크린샷 2025-07-18 오후 3 23 20" src="https://github.com/user-attachments/assets/d05aa6bc-ef52-42d7-b5f6-baa17f604ab5" />
+<img width="799" height="433" alt="스크린샷 2025-07-18 오후 3 23 12" src="https://github.com/user-attachments/assets/0c81a5d5-ee88-4c35-a98f-0366326c6874" />
+<img width="789" height="433" alt="스크린샷 2025-07-18 오후 3 23 20" src="https://github.com/user-attachments/assets/d05aa6bc-ef52-42d7-b5f6-baa17f604ab5" />
 
 ### Key Options
 
@@ -126,14 +126,14 @@ pip install .
 
 `whspider -u "http://localhost/index.php" --static --depth 5 --cookie "PHPSESSID=your cookie"--graph --ignore-robots `
 
-<img width="796" height="565" alt="스크린샷 2025-07-18 오후 3 14 30" src="https://github.com/user-attachments/assets/4c1e1877-642f-4a0e-89f5-e77dd86f6da5" />
+<img width="796" height="565" alt="스크린샷 2025-07-18 오후 3 14 30" src="https://github.com/user-attachments/assets/4c1e1877-642f-4a0e-89f5-e77dd86f6da5" />
 
 ### 그래프
-<img width="1223" height="734" alt="스크린샷 2025-07-18 오후 3 16 51" src="https://github.com/user-attachments/assets/ab252071-635e-44f6-94da-5a0a01066ddc" />
+<img width="1223" height="734" alt="스크린샷 2025-07-18 오후 3 16 51" src="https://github.com/user-attachments/assets/ab252071-635e-44f6-94da-5a0a01066ddc" />
 
 ### LLM
-<img width="799" height="433" alt="스크린샷 2025-07-18 오후 3 23 12" src="https://github.com/user-attachments/assets/0c81a5d5-ee88-4c35-a98f-0366326c6874" />
-<img width="789" height="433" alt="스크린샷 2025-07-18 오후 3 23 20" src="https://github.com/user-attachments/assets/d05aa6bc-ef52-42d7-b5f6-baa17f604ab5" />
+<img width="799" height="433" alt="스크린샷 2025-07-18 오후 3 23 12" src="https://github.com/user-attachments/assets/0c81a5d5-ee88-4c35-a98f-0366326c6874" />
+<img width="789" height="433" alt="스크린샷 2025-07-18 오후 3 23 20" src="https://github.com/user-attachments/assets/d05aa6bc-ef52-42d7-b5f6-baa17f604ab5" />
 
 
 

@@ -10,6 +10,7 @@ from modules.parser import extract_inputs_with_form_context
 from modules.db import insert_link
 from modules.params import extract_params_from_url
 from modules.url_filter import compile_patterns, is_url_allowed, filter_similar_urls
+from urllib.parse import urljoin, urldefrag
 from modules.utils import DotsSpinner
 
 UA = "whspider/1.0"
@@ -49,6 +50,7 @@ def run_static_crawl_entry(start_url, max_depth=1, include=None, exclude=None, m
 
     spinner = DotsSpinner("크롤링 중")
     spinner.start()
+    
 
     try:
         if mode == 'dfs':
@@ -91,7 +93,7 @@ def fetch_page(url, depth, parent, include_patterns, exclude_patterns, max_depth
 
     parent_key = parent if parent else start_url
     parent_url_groups[parent_key].append((url, parent, depth, host, query_params, input_fields_json))
-
+    
     if depth == max_depth:
         return
 
@@ -126,7 +128,6 @@ def _run_static_bfs(start_url, max_depth, include_patterns, exclude_patterns, ba
 
 
 def save_filtered_urls(db_path):
-
     final_urls = []
 
     for parent, url_info_list in parent_url_groups.items():

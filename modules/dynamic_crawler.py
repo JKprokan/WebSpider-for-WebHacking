@@ -11,6 +11,7 @@ from modules.db import insert_link
 from modules.params import extract_params_from_url
 from modules.url_filter import compile_patterns, is_url_allowed, filter_similar_urls
 from playwright.async_api import async_playwright
+from urllib.parse import urljoin, urldefrag
 from modules.utils import DotsSpinner
 
 UA = "whspider/1.0"
@@ -70,11 +71,11 @@ def run_dynamic_crawl_entry(start_url, max_depth=1, include=None, exclude=None, 
         print("\n[!] 사용자에 의해 크롤링이 중지되었습니다.")
         save_filtered_urls(db_path)
         print("[i] 지금까지 수집한 데이터만 저장 후 종료합니다.\n")
-    
+
     finally:
         spinner.stop()
         print()
-        
+
 async def fetch_page(context, url, depth, parent, include_patterns, exclude_patterns, max_depth, visited, container, push, base_netloc, start_url, db_path, rp, ignore_robots):
     if url in visited or depth > max_depth:
         return
@@ -86,8 +87,9 @@ async def fetch_page(context, url, depth, parent, include_patterns, exclude_patt
 
     try:
         page = await context.new_page()
-        await page.goto(url, timeout=7000, wait_until="domcontentloaded")
-        await page.wait_for_load_state("domcontentloaded")
+        await page.goto(url, timeout=7000, wait_until="networkidle") #domcontentloaded, networkidle
+        await page.wait_for_load_state("networkidle")
+
         content = await page.content()
         soup = BeautifulSoup(content, "html.parser") 
 
@@ -110,8 +112,10 @@ async def fetch_page(context, url, depth, parent, include_patterns, exclude_patt
             raw = tag["href"].strip()
             if raw.startswith("#"):
                 continue
+            
             abs_url = urljoin(url, raw)
             next_url, _ = urldefrag(abs_url)
+            
             if next_url.startswith("javascript:") or not is_supported_scheme(next_url):
                 continue
             if not is_internal_url(next_url, base_netloc):

@@ -12,7 +12,6 @@ class DotsSpinner:
         self.running = True
         self.thread = threading.Thread(target=self._animate)
         self.thread.start()
-
     def _animate(self):
         dot_cycle = ["", ".", "..", "..."]
         i = 0
